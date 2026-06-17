@@ -21,7 +21,7 @@ function readString(data: Uint8Array, offset: number): string {
 // mdxmHeader_t field offsets
 // ident(4) version(4) name[64] animName[64] animIndex(4) numBones(4)
 // numLODs(4) ofsLODs(4) numSurfaces(4) ofsSurfHierarchy(4) ofsEnd(4)
-const HDR_NUM_BONES          = 140;
+export const HDR_NUM_BONES   = 140;
 const HDR_NUM_LODS           = 144;
 const HDR_OFS_LODS           = 148;
 const HDR_NUM_SURFACES       = 152;
