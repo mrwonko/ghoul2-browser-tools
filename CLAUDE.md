@@ -4,9 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-A web-based converter that automatically ports Jedi Knight: Jedi Academy (JK3) player models to Jedi Knight 2: Jedi Outcast (JK2). The implementation is planned as a web tool (no server required — runs in-browser).
+A web-based converter that automatically ports Jedi Knight: Jedi Academy (JK3) player models to Jedi Knight 2: Jedi Outcast (JK2). Runs in-browser with no server. Also includes Node CLI tools for development/verification.
 
 The project is based on JK3 source code and is licensed under **GPLv2**.
+
+## Build and CLI
+
+```sh
+npm run build                                         # compile TypeScript → dist/
+node dist/print-cli.js <file.glm>                     # inspect surfaces and bone references
+node dist/convert-cli.js <input.glm> <output.glm>    # convert JK3 → JK2
+```
+
+No runtime npm packages — TypeScript is the only devDependency.
+
+## Source structure
+
+- **`src/glm.ts`** — GLM parser. `parseHeader()` + `iterSurfaces()` generator. Yields `SurfaceView` with a `boneReferences: Uint8Array` subarray view into the original buffer — modify in-place with a `DataView` to remap bones.
+- **`src/boneMapping.ts`** — Exports `JK3_TO_JK2: ReadonlyArray<number>` mapping JK3 bone index → JK2 bone index (-1 for `ltail`/`rtail`).
+- **`src/converter.ts`** — `convertGlm(data: Uint8Array)` remaps all bone references in-place and patches `numBones` in the header (53 → 72). Shared between CLI and browser.
+- **`src/convert-cli.ts`** — CLI wrapper around `convertGlm`.
+- **`src/print-cli.ts`** — CLI that prints each surface's name and bone reference list per LOD; warns on out-of-range indices.
+- **`index.html`** — Browser UI (HTML/CSS only; JS not yet wired up).
 
 ## Domain: Ghoul2 Binary Formats
 
@@ -24,8 +43,8 @@ JK3 and JK2 use **different skeletons** with different bone indices. The convers
 ### File traversal
 
 GLM surfaces are accessed via two parallel arrays per LOD:
-1. `mdxmLODSurfOffset_t.offsets[]` — offsets to each `mdxmSurface_t` within that LOD block
-2. `mdxmHierarchyOffsets_t.offsets[]` — offsets to `mdxmSurfHierarchy_t` entries (shader name, flags, parent/child indices) — **stored once at the file level**, not per LOD
+1. `mdxmLODSurfOffset_t.offsets[]` — offsets to each `mdxmSurface_t` within that LOD block. Offsets are **relative to `mdxmLODSurfOffset_t`** (i.e. `lodBase + 4`), not to `mdxmLOD_t` (`lodBase`).
+2. `mdxmHierarchyOffsets_t.offsets[]` — offsets to `mdxmSurfHierarchy_t` entries (shader name, flags, parent/child indices) — **stored once at the file level**, not per LOD. This table sits immediately after the header at byte 164 (`sizeof(mdxmHeader_t)`). `ofsSurfHierarchy` in the header points to the first *entry* (past the table) and should **not** be used as the table base.
 
 GLA bone data: frame/bone index is at `ofsFrames + (frameNum * numBones * 3) + (boneNum * 3)` — a 3-byte little-endian index into the compressed bone pool (`ofsCompBonePool`). Each pool entry is an `mdxaCompQuatBone_t` (14 bytes, quaternion-compressed).
 
