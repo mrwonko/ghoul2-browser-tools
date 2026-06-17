@@ -49,9 +49,14 @@ const JK3_BONES = {
 type Jk2BoneName = keyof typeof JK2_BONES;
 type Jk3BoneName = keyof typeof JK3_BONES;
 
-// Maps each JK3 bone name to its JK2 equivalent.
-// `satisfies` checks every key individually — any JK3 bone name that isn't
-// a valid Jk2BoneName will produce a type error on that specific line.
+// JK3 bones with no JK2 equivalent. Player models are assumed not to use
+// them; the converter will throw at runtime if a surface references one.
+type UnusedJk3BoneName = "ltail" | "rtail";
+type MappedJk3BoneName = Exclude<Jk3BoneName, UnusedJk3BoneName>;
+
+// Maps each mappable JK3 bone name to its JK2 equivalent.
+// `satisfies` checks every key individually — a missing or invalid value
+// produces a type error on that specific line.
 const JK3_TO_JK2_NAME = {
   "model_root":     "model_root",
   "pelvis":         "pelvis",
@@ -102,13 +107,13 @@ const JK3_TO_JK2_NAME = {
   "l_d2_j2":        "l_d2_j2",
   "l_d1_j1":        "l_d1_j1",
   "l_d1_j2":        "l_d1_j2",
-  "ltail":          "ltail",          // no JK2 equivalent — fix me
-  "rtail":          "rtail",          // no JK2 equivalent — fix me
-  "lhang_tag_bone": "lhang_tag_bone", // no JK2 equivalent — fix me
+  "lhang_tag_bone": "lhand",
   "face":           "face",
-} satisfies Record<Jk3BoneName, Jk2BoneName>;
+} satisfies Record<MappedJk3BoneName, Jk2BoneName>;
 
-// jk3 bone index → jk2 bone index
+// jk3 bone index → jk2 bone index (-1 for bones assumed unused in player models)
 export const JK3_TO_JK2: ReadonlyArray<number> =
-  (Object.keys(JK3_BONES) as Jk3BoneName[])
-    .map(name => JK2_BONES[JK3_TO_JK2_NAME[name]]);
+  (Object.keys(JK3_BONES) as Jk3BoneName[]).map(name => {
+    if (name === "ltail" || name === "rtail") return -1;
+    return JK2_BONES[JK3_TO_JK2_NAME[name]];
+  });
