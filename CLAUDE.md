@@ -23,9 +23,10 @@ No runtime npm packages — TypeScript is the only devDependency.
 - **`src/glm.ts`** — GLM parser. `parseHeader()` + `iterSurfaces()` generator. Yields `SurfaceView` with a `boneReferences: Uint8Array` subarray view into the original buffer — modify in-place with a `DataView` to remap bones.
 - **`src/boneMapping.ts`** — Exports `JK3_TO_JK2: ReadonlyArray<number>` mapping JK3 bone index → JK2 bone index (-1 for `ltail`/`rtail`).
 - **`src/converter.ts`** — `convertGlm(data: Uint8Array)` remaps all bone references in-place and patches `numBones` in the header (53 → 72). Shared between CLI and browser.
+- **`src/app.ts`** — Browser UI entry point. Loaded by `index.html` as `<script type="module" src="dist/app.js">`.
 - **`src/convert-cli.ts`** — CLI wrapper around `convertGlm`.
 - **`src/print-cli.ts`** — CLI that prints each surface's name and bone reference list per LOD; warns on out-of-range indices.
-- **`index.html`** — Browser UI (HTML/CSS only; JS not yet wired up).
+- **`index.html`** — Browser UI (HTML/CSS + loads `dist/app.js` as an ES module).
 
 ## Domain: Ghoul2 Binary Formats
 
