@@ -257,6 +257,7 @@ typedef struct mdxmHeader_s {
 					// drawn at different sort times, and we don't want to have
 					// to re-interpolate all the bones for each surface.
 					//
+					// For a JK3 to JK2 conversion, these ints need to be translated.
 					int			numBoneReferences;
 					int			ofsBoneReferences;
 
@@ -397,6 +398,7 @@ typedef struct mdxaHeader_s {
 		// mdxaSkel_t - contains hierarchical info only...
 
 		typedef struct mdxaSkel_s {
+			// to define the mappings of JK3 bones to JK2 bones we need to generate a bone index to name mapping based on this
 			char		name[MAX_QPATH];	// name of bone
 			unsigned int flags;
 			int			parent;				// index of bone that is parent to this one, -1 = NULL/root
