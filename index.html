@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JK3 → JK2 Player Model Converter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #181b22;
+      --border:   #2a2d38;
+      --accent:   #4fa3e0;
+      --accent-h: #6bb8f5;
+      --text:     #d4d8e2;
+      --muted:    #6b7080;
+      --error:    #e05c4f;
+      --ok:       #4fc87a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem;
+      gap: 2rem;
+    }
+
+    header { text-align: center; }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -.02em;
+      color: #fff;
+    }
+
+    h1 span { color: var(--accent); }
+
+    header p {
+      margin-top: .5rem;
+      color: var(--muted);
+      max-width: 48ch;
+    }
+
+    main {
+      width: 100%;
+      max-width: 540px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .75rem;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over { border-color: var(--accent); background: #1a1f2e; }
+
+    .drop-zone svg { color: var(--muted); }
+    .drop-zone.drag-over svg { color: var(--accent); }
+
+    .drop-zone p { color: var(--muted); font-size: .9rem; }
+    .drop-zone p strong { color: var(--text); }
+
+    .drop-zone input[type="file"] { display: none; }
+
+    /* File chip shown after selection */
+    .file-chip {
+      display: none;
+      align-items: center;
+      gap: .6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .5rem .85rem;
+      font-size: .875rem;
+    }
+
+    .file-chip.visible { display: flex; }
+
+    .file-chip .name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    .file-chip .size { color: var(--muted); white-space: nowrap; }
+
+    .file-chip button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 0;
+      line-height: 1;
+      font-size: 1rem;
+    }
+
+    .file-chip button:hover { color: var(--error); }
+
+    /* Action button */
+    .btn-convert {
+      padding: .7rem 1.5rem;
+      border-radius: 7px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background .15s;
+      width: 100%;
+    }
+
+    .btn-convert:hover:not(:disabled) { background: var(--accent-h); }
+
+    .btn-convert:disabled {
+      opacity: .35;
+      cursor: not-allowed;
+    }
+
+    /* Status / result */
+    .status {
+      display: none;
+      border-radius: 7px;
+      padding: .75rem 1rem;
+      font-size: .875rem;
+      line-height: 1.5;
+    }
+
+    .status.visible { display: block; }
+    .status.error   { background: #2a1614; border: 1px solid #5c2520; color: var(--error); }
+    .status.ok      { background: #112214; border: 1px solid #1e4d2e; color: var(--ok); }
+    .status.info    { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+
+    /* Download button */
+    .btn-download {
+      display: none;
+      padding: .7rem 1.5rem;
+      border-radius: 7px;
+      border: 1px solid var(--ok);
+      background: transparent;
+      color: var(--ok);
+      font: inherit;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background .15s;
+      width: 100%;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .btn-download:hover { background: #112214; }
+    .btn-download.visible { display: block; }
+
+    /* Info section */
+    details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    summary {
+      padding: .75rem 1rem;
+      cursor: pointer;
+      font-size: .875rem;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    summary:hover { color: var(--text); }
+
+    .details-body {
+      padding: .25rem 1rem 1rem;
+      font-size: .875rem;
+      color: var(--muted);
+      line-height: 1.7;
+      border-top: 1px solid var(--border);
+    }
+
+    .details-body p + p { margin-top: .6rem; }
+    .details-body code {
+      background: #0d0f14;
+      border-radius: 3px;
+      padding: .1em .35em;
+      font-size: .85em;
+      color: var(--accent);
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: .8rem;
+      text-align: center;
+    }
+
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>JK3 <span>→</span> JK2 Player Model Converter</h1>
+    <p>Automatically ports Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast. Runs entirely in your browser — no upload, no server.</p>
+  </header>
+
+  <main>
+
+    <label class="drop-zone" id="dropZone">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p><strong>Drop your .glm file here</strong><br>or click to browse</p>
+      <input type="file" id="fileInput" accept=".glm">
+    </label>
+
+    <div class="file-chip" id="fileChip">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="name" id="chipName"></span>
+      <span class="size" id="chipSize"></span>
+      <button id="clearFile" title="Remove file">✕</button>
+    </div>
+
+    <button class="btn-convert" id="btnConvert" disabled>Convert</button>
+
+    <div class="status" id="status"></div>
+
+    <a class="btn-download" id="btnDownload" download>Download converted .glm</a>
+
+    <details>
+      <summary>How does this work?</summary>
+      <div class="details-body">
+        <p>JK3 and JK2 both use the <strong>Ghoul2</strong> (<code>.glm</code>) format for player models, but with different skeletons and bone indices. This tool remaps each surface's bone references from JK3 indices to their JK2 equivalents.</p>
+        <p>The vertex bone weights are stored as indices into the surface's own bone reference table — not the global skeleton — so they don't change.</p>
+        <p>Three JK3 bones have no JK2 equivalent: <code>ltail</code> and <code>rtail</code> (unused in player models) and <code>lhang_tag_bone</code> (mapped to <code>lhand</code>).</p>
+      </div>
+    </details>
+
+  </main>
+
+  <footer>
+    <a href="https://github.com/mrwonko/jk3-player-model-to-jk2">Source on GitHub</a> &mdash; GPLv2
+  </footer>
+
+</body>
+</html>
