@@ -1,0 +1,16 @@
+{
+  "name": "jk3-player-model-to-jk2",
+  "version": "1.0.0",
+  "description": "An automatic web converter for porting Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "GPL-2.0-only",
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
