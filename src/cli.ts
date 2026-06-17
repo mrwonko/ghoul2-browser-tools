@@ -21,5 +21,11 @@ for (const surf of iterSurfaces(data)) {
     currentLod = surf.lodIndex;
     console.log(`\nLOD ${currentLod}:`);
   }
-  console.log(`  ${surf.name}: [${Array.from(surf.boneReferences).join(', ')}]`);
+  const { boneReferences: refs, numBoneRefs } = surf;
+  const dv      = new DataView(refs.buffer, refs.byteOffset, refs.byteLength);
+  const bones   = Array.from({ length: numBoneRefs }, (_, i) => dv.getInt32(i * 4, true));
+  const invalid = bones.filter(b => b < 0 || b >= hdr.numBones);
+  console.log(`  ${surf.name}: [${bones.join(', ')}]`);
+  if (invalid.length > 0)
+    console.warn(`    WARNING: out-of-range bone indices (valid: 0..${hdr.numBones - 1}): ${invalid.join(', ')}`);
 }
