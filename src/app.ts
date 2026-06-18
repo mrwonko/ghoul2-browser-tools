@@ -1,4 +1,7 @@
 import { convertGlm } from './converter.js';
+import { parseHeader } from './glm.js';
+
+const EXPECTED_ANIM = 'models/players/_humanoid/_humanoid';
 
 const dropZone    = document.getElementById('dropZone')!;
 const fileInput   = document.getElementById('fileInput')  as HTMLInputElement;
@@ -70,6 +73,17 @@ convertBtn.addEventListener('click', async () => {
   showStatus('info', 'Converting…');
   try {
     const data = new Uint8Array(await selectedFile.arrayBuffer());
+    const { animName } = parseHeader(data);
+    if (animName !== EXPECTED_ANIM) {
+      const proceed = confirm(
+        `This model uses skeleton "${animName}" instead of the expected "${EXPECTED_ANIM}".\n\nThe conversion may produce incorrect results. Proceed anyway?`
+      );
+      if (!proceed) {
+        convertBtn.disabled = false;
+        clearResult();
+        return;
+      }
+    }
     convertGlm(data);
     blobUrl = URL.createObjectURL(new Blob([data], { type: 'application/octet-stream' }));
     downloadBtn.href     = blobUrl;
