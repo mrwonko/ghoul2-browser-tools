@@ -1,22 +1,11 @@
 import { readFileSync } from 'fs';
-
-const fourCC = (s: string): number =>
-  s.split('').reduce((acc, c, i) => acc | (c.charCodeAt(0) << (i * 8)), 0);
+import { MAX_QPATH, fourCC, readString } from './ghoul2.js';
 
 export const MDXA_IDENT   = fourCC('2LGA');
 export const MDXA_VERSION = 6;
 
-const MAX_QPATH  = 64;
 // name(64) + flags(4) + parent(4) + BasePoseMat(48) + BasePoseMatInv(48) + numChildren(4)
 const BONE_FIXED = MAX_QPATH + 4 + 4 + 48 + 48 + 4; // 172
-
-const textDecoder = new TextDecoder('ascii');
-
-function readString(data: Uint8Array, offset: number): string {
-  const slice = data.subarray(offset, offset + MAX_QPATH);
-  const end   = slice.indexOf(0);
-  return textDecoder.decode(end === -1 ? slice : slice.subarray(0, end));
-}
 
 // Returns a map of bone name → global bone index, in skeleton order.
 export function readBoneMap(data: Uint8Array): Map<string, number> {

@@ -1,22 +1,9 @@
-// GLM (Ghoul2 mesh) parser. Uses only Uint8Array / DataView so the same code
-// runs in both Node and the browser.
+import { MAX_QPATH, fourCC, readString } from './ghoul2.js';
 
-const fourCC = (s: string): number =>
-  s.split('').reduce((acc, c, i) => acc | (c.charCodeAt(0) << (i * 8)), 0);
-
-export const MDXM_IDENT = fourCC('2LGM');
-export const MDXM_VERSION  = 6;
-const MAX_QPATH = 64;
+export const MDXM_IDENT   = fourCC('2LGM');
+export const MDXM_VERSION = 6;
 // ident(4) version(4) name[64] animName[64] animIndex(4) numBones(4) numLODs(4) ofsLODs(4) numSurfaces(4) ofsSurfHierarchy(4) ofsEnd(4)
 const HEADER_SIZE = 2 * 4 + MAX_QPATH * 2 + 7 * 4; // = 164
-
-const textDecoder = new TextDecoder('ascii');
-
-function readString(data: Uint8Array, offset: number): string {
-  const slice = data.subarray(offset, offset + MAX_QPATH);
-  const end = slice.indexOf(0);
-  return textDecoder.decode(end === -1 ? slice : slice.subarray(0, end));
-}
 
 // mdxmHeader_t field offsets
 // ident(4) version(4) name[64] animName[64] animIndex(4) numBones(4)
