@@ -12,18 +12,21 @@ The project is based on JK3 source code and is licensed under **GPLv2**.
 
 ```sh
 npm run build                                         # compile TypeScript → dist/
+npm test                                              # run vitest unit tests (src/ only)
 node dist/print-cli.js <file.glm>                     # inspect surfaces and bone references
 node dist/convert-cli.js <input.glm> <output.glm>    # convert JK3 → JK2
 ```
 
-No runtime npm packages — TypeScript is the only devDependency.
+No runtime npm packages — TypeScript and vitest are the only devDependencies.
 
 ## Source structure
 
 - **`src/glm.ts`** — GLM parser. `parseHeader()` + `iterSurfaces()` generator. Yields `SurfaceView` with a `boneReferences: Uint8Array` subarray view into the original buffer — modify in-place with a `DataView` to remap bones.
+- **`src/gla.ts`** — GLA skeleton reader. `readBoneMap(Uint8Array)` walks `mdxaSkel_t` entries sequentially from `ofsSkel` and returns a `Map<boneName, index>`.
 - **`src/boneMapping.ts`** — Exports `JK3_TO_JK2: ReadonlyArray<number>` mapping JK3 bone index → JK2 bone index (-1 for `ltail`/`rtail`).
 - **`src/converter.ts`** — `convertGlm(data: Uint8Array)` remaps all bone references in-place and patches `numBones` in the header (53 → 72). Shared between CLI and browser.
 - **`src/app.ts`** — Browser UI entry point. Loaded by `index.html` as `<script type="module" src="dist/app.js">`.
+- **`src/testdata/`** — `simpleskel.gla` (3-bone skeleton: root/foo/bar) and `testmodel.glm` (2 surfaces, 2 LODs) used by unit tests.
 - **`src/convert-cli.ts`** — CLI wrapper around `convertGlm`.
 - **`src/print-cli.ts`** — CLI that prints each surface's name and bone reference list per LOD; warns on out-of-range indices.
 - **`index.html`** — Browser UI (HTML/CSS + loads `dist/app.js` as an ES module).
