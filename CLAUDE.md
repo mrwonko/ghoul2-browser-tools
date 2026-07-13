@@ -64,3 +64,4 @@ Rationale for non-obvious implementation choices lives in `decisions/`, one file
 
 - `decisions/bone-mapping.md` — how JK3→JK2 bone remapping handles bones with no equivalent.
 - `decisions/animname-check.md` — why a non-humanoid `animName` warns-and-confirms instead of failing or converting silently.
+- `decisions/coding-conventions.md` — in-place `DataView` mutation for GLM conversion vs. immutable-source-plus-view for planned GLA splicing; offsets relative to containing struct; generator-based iteration.
