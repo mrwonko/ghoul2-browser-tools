@@ -11,13 +11,17 @@ The project is based on JK3 source code and is licensed under **GPLv2**.
 ## Build and CLI
 
 ```sh
-npm run build                                         # compile TypeScript → dist/
+npm run build                                         # compile TypeScript → dist/, copy src/index.html → dist/index.html
 npm test                                              # run vitest unit tests (src/ only)
 node dist/print-cli.js <file.glm>                     # inspect surfaces and bone references
 node dist/convert-cli.js <input.glm> <output.glm>    # convert JK3 → JK2
+./ci.sh [--skip-tests]                                # npm ci, then npm test unless --skip-tests
+./deploy.sh                                            # ci.sh --skip-tests, build, rsync dist/ to the deploy target (CI-only; see deploy.md)
 ```
 
 No runtime npm packages — TypeScript and vitest are the only devDependencies.
+
+`.github/workflows/ci.yml` runs `ci.sh` on every push/PR, then (on `main` only, once `ci.sh` succeeds) a `deploy` job runs `deploy.sh` to rsync `dist/` to the production server. `deploy.md` is the one-time, copy-pasteable server-side setup (SSH keypair, `authorized_keys` `rrsync` restriction, GitHub secrets) that this workflow depends on — it's a manual step outside of CI's control.
 
 ## Source structure
 
@@ -25,11 +29,14 @@ No runtime npm packages — TypeScript and vitest are the only devDependencies.
 - **`src/gla.ts`** — GLA skeleton reader. `readBoneMap(Uint8Array)` walks `mdxaSkel_t` entries sequentially from `ofsSkel` and returns a `Map<boneName, index>`.
 - **`src/boneMapping.ts`** — Exports `JK3_TO_JK2: ReadonlyArray<number>` mapping JK3 bone index → JK2 bone index (-1 for `ltail`/`rtail`).
 - **`src/converter.ts`** — `convertGlm(data: Uint8Array)` remaps all bone references in-place and patches `numBones` in the header (53 → 72). Shared between CLI and browser.
-- **`src/app.ts`** — Browser UI entry point. Loaded by `index.html` as `<script type="module" src="dist/app.js">`.
+- **`src/app.ts`** — Browser UI entry point. Loaded by `src/index.html` as `<script type="module" src="app.js">`.
 - **`src/testdata/`** — `simpleskel.gla` (3-bone skeleton: root/foo/bar) and `testmodel.glm` (2 surfaces, 2 LODs) used by unit tests.
 - **`src/convert-cli.ts`** — CLI wrapper around `convertGlm`.
 - **`src/print-cli.ts`** — CLI that prints each surface's name and bone reference list per LOD; warns on out-of-range indices.
-- **`index.html`** — Browser UI (HTML/CSS + loads `dist/app.js` as an ES module).
+- **`src/index.html`** — Browser UI (HTML/CSS + loads `app.js` as an ES module, same directory). `npm run build`'s `postbuild` step copies it verbatim to `dist/index.html`, so `dist/` is self-contained and deployable as-is. Edit this file directly — nothing rewrites it at build time.
+- **`ci.sh`** — `npm ci`, then `npm test` unless called with `--skip-tests`.
+- **`deploy.sh`** — CI-only: `ci.sh --skip-tests`, `npm run build`, then `rsync --delete` of `dist/` to the production server over SSH. See `deploy.md` for the required env vars and one-time server-side setup.
+- **`deploy.md`** — one-time, manual server-side deploy setup spec (deploy keypair, `authorized_keys` `rrsync` restriction, GitHub Actions secrets). Not run by CI; a human runs this once.
 
 ## Domain: Ghoul2 Binary Formats
 
@@ -65,3 +72,4 @@ Rationale for non-obvious implementation choices lives in `decisions/`, one file
 - `decisions/bone-mapping.md` — how JK3→JK2 bone remapping handles bones with no equivalent.
 - `decisions/animname-check.md` — why a non-humanoid `animName` warns-and-confirms instead of failing or converting silently.
 - `decisions/coding-conventions.md` — in-place `DataView` mutation for GLM conversion vs. immutable-source-plus-view for planned GLA splicing; offsets relative to containing struct; generator-based iteration.
+- `decisions/deploy-pipeline.md` — why `index.html` lives in `src/` and is edited directly rather than generated; why deploy is a `needs: test` job in `ci.yml` rather than a separate workflow; why the deploy SSH key is `rrsync -wo`-restricted.

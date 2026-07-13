@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
+    "postbuild": "cp src/index.html dist/index.html",
     "test": "vitest run src"
   },
   "keywords": [],
