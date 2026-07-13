@@ -11,6 +11,13 @@ be used for nothing else.
 
 ## 2. Restrict it server-side to rsync-only, write-only, into one directory
 
+Create the target directory first — `rsync`'s receiver does a single,
+non-recursive `mkdir` on the destination, so it will fail (`mkdir "..."
+failed: No such file or directory`) if the directory or any parent doesn't
+already exist:
+
+    mkdir -p /absolute/path/to/target/dir
+
 Append a line to the target user's `~/.ssh/authorized_keys` (the *public*
 half, `deploy_key.pub`, prefixed with `restrict,command="..."`):
 
@@ -22,11 +29,13 @@ half, `deploy_key.pub`, prefixed with `restrict,command="..."`):
   never read its contents back over this connection — if the private key
   ever leaks, the blast radius is "can overwrite the site," not "can read
   the server."
-- The directory argument is the actual security boundary: `rrsync` confines
-  every operation to it server-side regardless of what path the client
-  sends. It **must be a directory used for nothing else** — the deploy
-  script runs `rsync --delete`, so anything placed there outside a deploy
-  gets removed on the next run.
+- The directory argument is the actual security boundary: `rrsync` `chdir`s
+  into it server-side and confines every operation underneath it — the
+  client cannot escape above it. It does **not** ignore the path the client
+  sends, though: `rrsync` resolves that path *relative to* this directory
+  (see `DEPLOY_TARGET_PATH` below). It **must be a directory used for
+  nothing else** — the deploy script runs `rsync --delete`, so anything
+  placed there outside a deploy gets removed on the next run.
 - `restrict` (modern OpenSSH shorthand) disables port/X11/agent forwarding,
   PTY allocation, and user rc execution for this key — matching the existing
   convention already used for other restricted entries in this file.
@@ -39,7 +48,7 @@ half, `deploy_key.pub`, prefixed with `restrict,command="..."`):
 | `DEPLOY_SSH_HOST`        | Server hostname or IP                                              |
 | `DEPLOY_SSH_USER`        | The remote user whose `authorized_keys` you edited in step 2       |
 | `DEPLOY_SSH_PORT`        | SSH port, only if not 22                                           |
-| `DEPLOY_TARGET_PATH`     | The same absolute directory used as the `rrsync` DIR in step 2     |
+| `DEPLOY_TARGET_PATH`     | Path dist/ lands at, **relative to** the `rrsync` DIR from step 2 (`rrsync` chdirs into DIR, then resolves this path against it) — use `.` to land directly in DIR. Repeating DIR's absolute path here causes rsync to try creating DIR/\<that path\> and fail with a `mkdir` error, since it doesn't exist |
 | `DEPLOY_KNOWN_HOSTS`     | Output of `ssh-keyscan -H -p <port> <host>` run against the server |
 
 ## 4. (Recommended) sanity-check before relying on CI
