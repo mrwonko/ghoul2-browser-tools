@@ -9,11 +9,15 @@ set -euo pipefail
 #   DEPLOY_SSH_HOST         deploy target server hostname/IP
 #   DEPLOY_SSH_USER         remote user whose authorized_keys restricts this
 #                           key to `rrsync -wo DEPLOY_TARGET_PATH`
-#   DEPLOY_TARGET_PATH      directory dist/ is synced into — MUST match the
-#                           DIR baked into that authorized_keys entry (rrsync
-#                           enforces its own DIR server-side regardless of
-#                           what path is sent here; a mismatch won't error,
-#                           it'll just write somewhere other than intended)
+#   DEPLOY_TARGET_PATH      where dist/ lands, RELATIVE to the DIR baked into
+#                           the authorized_keys `rrsync -wo DIR` restriction
+#                           (rrsync chdirs into DIR, then resolves this path
+#                           relative to that — it does not ignore it). Use
+#                           "." to land files directly in DIR itself; do NOT
+#                           repeat DIR's absolute path here, or rsync will try
+#                           to create DIR/<that path> and fail with "mkdir
+#                           ... No such file or directory" since it doesn't
+#                           exist
 #   DEPLOY_KNOWN_HOSTS      output of `ssh-keyscan -H -p <port> <host>` for
 #                           the target server, used for strict host-key
 #                           verification
