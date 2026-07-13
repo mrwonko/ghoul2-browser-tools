@@ -1,0 +1,14 @@
+- banner:
+  - heading "JK3 → JK2 Player Model Converter" [level=1]
+  - paragraph: "Automatically ports Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast. Runs entirely in your browser — no upload, no server."
+- main:
+  - img
+  - paragraph:
+    - strong: Drop your .glm file here
+    - text: or click to browse
+  - button "Convert" [disabled]
+  - group: How does this work?
+- contentinfo:
+  - link "Source on GitHub":
+    - /url: https://github.com/mrwonko/jk3-player-model-to-jk2
+  - text: — GPLv2
