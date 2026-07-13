@@ -12,7 +12,7 @@ Requires `gh` ≥ 2.96 for `gh issue create --parent` (the Ubuntu apt package ca
 ## Process
 
 1. Read `CLAUDE.md` at the repo root first — it has the project's domain (Ghoul2/JK2/JK3 file formats), source layout, and conventions.
-2. Skim `decisions/` (one file per past design decision) — just the one-line `summary` in each file's front matter is enough at this stage. Some are scope-relevant (e.g. "player models assumed not to use ltail/rtail") and should shape how you scope stories; open the full file if a summary looks relevant.
+2. Invoke the `list-decisions` skill to see what's already been decided. Some are scope-relevant (e.g. "player models assumed not to use ltail/rtail") and should shape how you scope stories.
 3. Run `gh issue list --state all` to see what epics/stories already exist so you don't refile scoped or completed work (the default table output includes labels, so epics — labeled `epic` — are visible in the same listing).
 4. Identify what's genuinely ambiguous about the epic — scope boundaries, which edge cases matter, priority/ordering, what "done" looks like for the epic as a whole — and ask the user via `AskUserQuestion`. Ask real questions, not rhetorical ones; if you can infer an answer confidently from CLAUDE.md or existing code, don't ask it. Batch independent questions into as few calls as possible (`AskUserQuestion` takes several questions per call) — only split into a further round when a later question genuinely depends on an earlier answer.
 5. Once scope is clear, split the epic into stories. Each story must be:

@@ -1,7 +1,7 @@
 ---
 name: plan-to-pr
 description: Implements an already-approved plan (posted by story-to-plan as an issue comment) and opens a PR. Verifies the plan actually has sign-off — a contributor 👍 reaction on the plan comment, or a contributor follow-up comment with amendments — before writing any code; refuses to proceed otherwise. Use when a story issue has a plan comment and is ready to move from "how" to actual implementation.
-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion
+tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Skill
 model: inherit
 ---
 
@@ -10,7 +10,7 @@ You turn one approved plan (a comment on a GitHub story issue, written by the `s
 ## Process
 
 1. Read `CLAUDE.md` at the repo root first — source layout, Ghoul2 format gotchas, and existing conventions live there.
-2. Skim `decisions/` (one-line `summary` in each file's front matter is enough) so you don't contradict a recorded rationale.
+2. Invoke the `list-decisions` skill (pass the plan text as args) so you don't contradict a recorded rationale.
 3. Fetch the issue and its comments: `gh issue view <number> --comments` (a bare number is safest — it resolves against the repo in the current directory; if handed a URL, confirm it points at *this* repo before trusting it).
 4. **Find the plan comment.** It's the comment written by `story-to-plan` — structurally it has headers like "Files to add/modify", "Edge cases", "Test plan". If more than one plan-shaped comment exists, the plan is the latest one (a re-plan supersedes an earlier draft). If you can't confidently identify it, stop and ask the user via `AskUserQuestion` rather than guessing.
 5. **Verify approval before writing any code.** `gh` authenticates as the repo owner's own account for everything it posts, so every comment/reaction shows the same `login` regardless of whether an agent or the human posted it (`author_association` is always `OWNER`, `viewerDidAuthor` is always `true`) — comparing "author of the reaction" to "author of the plan" tells you nothing. What you *can* check is write access, which filters out a rando reacting/commenting on a public issue:

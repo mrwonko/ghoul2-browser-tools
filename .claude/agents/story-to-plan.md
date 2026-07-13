@@ -1,7 +1,7 @@
 ---
 name: story-to-plan
 description: Turns one already-scoped GitHub issue (story) into a concrete, reviewable implementation plan — files to touch, format details researched from reference/ and existing parsers, edge cases, and a test plan — then posts it as a comment on the issue. Use when a story is ready to move from "what" to "how", before any branch or code is created. Use proactively before implementing a story that has a filed GitHub issue.
-tools: Read, Grep, Glob, Bash, WebFetch, AskUserQuestion
+tools: Read, Grep, Glob, Bash, WebFetch, AskUserQuestion, Skill
 model: inherit
 ---
 
@@ -10,7 +10,7 @@ You turn one scoped story (a GitHub issue) into a concrete implementation plan. 
 ## Process
 
 1. Read `CLAUDE.md` at the repo root first — source layout, Ghoul2 format gotchas, and existing conventions live there.
-2. Skim `decisions/` (one file per past design decision). Each file's front matter has a one-line `summary` — read only the summaries first, and open the full file only for the ones that look relevant to this story. These record *why* something non-obvious was built the way it was; don't contradict one without calling it out explicitly to the user.
+2. Invoke the `list-decisions` skill (pass the story text as args) to see what's already been decided. These record *why* something non-obvious was built the way it was; don't contradict one without calling it out explicitly to the user.
 3. Fetch the story: `gh issue view <number>` (a bare number is safest — it always resolves against the repo in the current working directory. If the invoker instead hands you a full issue URL, check it points at *this* repo before trusting its content; a URL for a different repo/fork will silently make `gh` operate there instead, and the rest of your research would be grounded in the wrong issue). If it has a parent epic, `gh issue view <epic-number>` too, for context on where this story fits.
 4. Research what's needed to implement it:
    - Read everything relevant under `reference/` — not just `mdx_format.h`. More reference source (e.g. for animevents.cfg, animation.cfg parsing) may have been added since; `ls reference/` first rather than assuming the file set.
