@@ -28,10 +28,12 @@ Requires `gh` ≥ 2.96 for `gh issue create --parent` (the Ubuntu apt package ca
    EOF
    ```
 
-   - **More than one story:** create the epic issue first (as above), note the returned issue number, then create each story as a sub-issue of it the same way, adding `--parent <epic-issue-number>`:
+   Don't list the child stories in the epic body — GitHub links sub-issues to their parent automatically via `--parent`, so an explicit list is redundant and will drift out of sync as stories evolve.
+
+   - **More than one story:** create the epic issue first (as above), note the returned issue number, then create each story as a sub-issue of it the same way, adding `--parent <epic-issue-number>`. File stories in dependency order so that when a later story's body needs to reference an earlier one, its issue number is already known — reference it as `#<number>` (not by quoting its title) so GitHub renders an automatic cross-link:
      ```sh
      gh issue create --title '<story title>' --parent <epic-issue-number> --body-file - <<'EOF'
-     <paragraph + dependencies>
+     <paragraph, e.g. "Depends on #<earlier-story-number>.">
      EOF
      ```
    - **Exactly one story:** just file a single issue, no epic/parent wrapper — don't force a one-item epic.
