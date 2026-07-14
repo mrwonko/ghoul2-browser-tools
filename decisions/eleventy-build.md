@@ -1,6 +1,6 @@
 ---
 name: eleventy-build
-summary: The site is built with Eleventy (@11ty/eleventy), an ordinary npm devDependency, not a separately-provisioned system tool; site/ is a project tree kept separate from src/; supersedes point 1 of decisions/deploy-pipeline.md.
+summary: The site is built with Eleventy (@11ty/eleventy), an ordinary npm devDependency, not a separately-provisioned system tool; site/ is a project tree kept separate from src/; how dist/index.html itself is generated.
 ---
 
 ## Eleventy is an ordinary npm devDependency, not a system tool
@@ -15,6 +15,6 @@ Eleventy's input directory is `site/` (`site/_includes/base.njk`, `site/index.nj
 
 Eleventy's Nunjucks environment autoescapes by default, unlike a plain string-interpolation copy: `site/_includes/base.njk`'s `{{ content }}` needs the `safe` filter (`{{ content | safe }}`) to render `site/index.njk`'s raw HTML body unescaped, rather than as HTML-entity-escaped text. `.njk` templates were chosen for page content over Eleventy's Markdown-with-front-matter path specifically because today's page is hand-built markup, not prose — Markdown-with-front-matter would introduce an unsafe-rendering opt-in this content doesn't need, where `.njk` passes raw HTML straight through untouched.
 
-## Supersedes point 1 of `decisions/deploy-pipeline.md`
+## `dist/index.html` is generated from a shared base layout, not hand-copied
 
-Point 1 of `decisions/deploy-pipeline.md` recorded why `index.html` used to live in `src/`, edited by hand next to `app.ts`, with a `postbuild` step that was a plain verbatim copy (`cp src/index.html dist/index.html`) rather than a generating/rewriting script — because there was nothing left to rewrite once the checked-in file already had the right relative `src=` path. That reasoning predates any templating system and doesn't transfer here: generating `dist/index.html` from a shared base layout (`site/_includes/base.njk` + `site/index.njk`) is the templating system's actual job, not a workaround for a self-inflicted path mismatch. `src/index.html` has been deleted; the page content now lives in `site/index.njk`, and the `<head>` shell lives in `site/_includes/base.njk`, with `postbuild` running `npx eleventy` instead of `cp`.
+`dist/index.html` is produced by Eleventy from `site/_includes/base.njk` (the shared `<html>`/`<head>` shell, common to every page using that layout) plus `site/index.njk` (today's one page's front matter + body), with `postbuild` running `npx eleventy`. There's no checked-in HTML file that already has the right output-relative paths baked in to just copy verbatim; generating the page from a shared layout is the templating system's actual job, and it's what lets more pages reuse `base.njk` (and anything else added to it, like the site-wide footer) without duplicating markup per page.
