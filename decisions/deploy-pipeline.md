@@ -13,9 +13,11 @@ Rather than generating a rewritten copy at build time (a `postbuild` script that
 
 Local dev now means: `npm run build`, then open `dist/index.html` (which now exactly mirrors what gets deployed), rather than opening a root-level file.
 
-## 2. Deploy is a second job in the existing `ci.yml`, gated by `needs: test`, not a separate workflow
+## 2. Deploy is a second job in the existing `ci.yml`, gated by `needs`, not a separate workflow
 
-A `deploy` job was added to the same `ci.yml` workflow rather than a second `workflow_run`-triggered workflow file. `needs: test` directly expresses "only after tests pass" via the job dependency graph, reuses the `test` job's checkout/setup-node steps as a pattern, and avoids the extra complexity of a separate workflow needing its own checkout-of-the-right-SHA and secrets wiring. `if: github.ref == 'refs/heads/main'` on the `deploy` job (not just the trigger's `branches: [main]` filter) exists specifically to stop `workflow_dispatch` from being able to deploy an arbitrary manually-selected branch/tag.
+A `deploy` job was added to the same `ci.yml` workflow rather than a second `workflow_run`-triggered workflow file. `needs:` directly expresses "only after [these jobs] pass" via the job dependency graph, reuses the `test` job's checkout/setup-node steps as a pattern, and avoids the extra complexity of a separate workflow needing its own checkout-of-the-right-SHA and secrets wiring. `if: github.ref == 'refs/heads/main'` on the `deploy` job (not just the trigger's `branches: [main]` filter) exists specifically to stop `workflow_dispatch` from being able to deploy an arbitrary manually-selected branch/tag.
+
+`deploy` originally gated on `needs: test` alone; once the `visual` job (Playwright screenshot-snapshot regression suite — see `decisions/visual-regression-testing.md`) was added, `deploy` was changed to `needs: [test, visual]`, on the same reasoning: deploying a build that fails either check is exactly the failure mode `needs:` exists to prevent, and `visual`'s own container needs `needs: test` too so a broken unit-test run doesn't burn a full container pull/build/browser-launch on a PR that's already going to be rejected.
 
 `deploy.sh` calls `ci.sh --skip-tests` rather than duplicating `npm ci` itself: the `deploy` job's tests already passed in the `test` job it `needs`, so `ci.sh` grew a `--skip-tests` flag (install dependencies, skip `npm test`) instead of `deploy.sh` reimplementing dependency setup on its own.
 
