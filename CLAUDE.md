@@ -73,3 +73,4 @@ Rationale for non-obvious implementation choices lives in `decisions/`, one file
 - `decisions/animname-check.md` — why a non-humanoid `animName` warns-and-confirms instead of failing or converting silently.
 - `decisions/coding-conventions.md` — in-place `DataView` mutation for GLM conversion vs. immutable-source-plus-view for planned GLA splicing; offsets relative to containing struct; generator-based iteration.
 - `decisions/deploy-pipeline.md` — why `index.html` lives in `src/` and is edited directly rather than generated; why deploy is a `needs: test` job in `ci.yml` rather than a separate workflow; why the deploy SSH key is `rrsync -wo`-restricted.
+- `decisions/shell-script-parsing.md` — why shell scripts and CI/agent tooling parse JSON/YAML with `jq`/`yq` instead of reaching for Python.
