@@ -21,7 +21,13 @@ PLAYWRIGHT_IMAGE="mcr.microsoft.com/playwright:v1.61.1-noble"
 
 npm_script="$1"
 
-podman run --rm --userns=keep-id \
+# Both callers only resolve *their own* path via dirname "$0" before exec'ing
+# into this script, so $PWD can't be assumed to already be the repo root —
+# resolve it explicitly so `-v "$PWD:/work"` below bind-mounts the right
+# directory regardless of the invoking shell's cwd.
+cd "$(dirname "$0")"
+
+podman run --rm --userns=keep-id --ipc=host \
   -v "$PWD:/work" -w /work \
   "$PLAYWRIGHT_IMAGE" \
   bash -c 'npm ci && npm run build && npm run "$1"' bash "$npm_script"
