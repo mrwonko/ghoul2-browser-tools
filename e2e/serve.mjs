@@ -13,7 +13,19 @@ const mime = {
 };
 
 createServer(async (req, res) => {
-  const requestPath = decodeURIComponent((req.url ?? '/').split('?')[0]);
+  let requestPath;
+  try {
+    // Malformed percent-encoding (e.g. a lone trailing '%') throws a
+    // URIError here. Left uncaught, that crashes this whole process — since
+    // this is Playwright's shared webServer for the entire suite, one bad
+    // request would fail every subsequent test with confusing
+    // connection-refused errors instead of just 400ing the one request.
+    requestPath = decodeURIComponent((req.url ?? '/').split('?')[0]);
+  } catch {
+    res.writeHead(400);
+    res.end();
+    return;
+  }
   const relative = requestPath === '/' ? 'index.html' : requestPath.slice(1);
   // Resolve against root and verify the result is still rooted there, rather
   // than trying to enumerate/strip `..` segments ourselves — `resolve()`
