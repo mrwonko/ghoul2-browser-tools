@@ -1,11 +1,13 @@
 ---
 name: deploy-pipeline
-summary: How the site gets deployed: self-contained dist/ via index.html living in src/ next to app.ts, single-workflow needs:test gating instead of a second workflow, and a write-only rrsync-restricted deploy key.
+summary: How the site gets deployed to self-contained dist/, single-workflow needs:test gating instead of a second workflow, and a write-only rrsync-restricted deploy key. Point 1 (index.html living in src/) is superseded by decisions/eleventy-build.md.
 ---
 
 Deploying the static site (built `dist/` output) to a real server involved three non-obvious calls that later contributors could easily second-guess or redo differently:
 
 ## 1. `index.html` lives in `src/`, edited by hand, not generated at build time
+
+> **Superseded** by `decisions/eleventy-build.md`: the site is now built with Eleventy, `src/index.html` has been deleted, and `dist/index.html` is generated from `site/_includes/base.njk` + `site/index.njk`. The rest of this entry is kept for historical context.
 
 `index.html` needs a different `<script src>` depending on where it sits relative to the compiled `app.js`: the repo previously kept it at the repo root, referencing `dist/app.js`, which only worked for the "build then open the root file" local-dev flow — it wasn't deployable as-is, since a server serving `dist/` wouldn't have a sibling `dist/` inside itself.
 

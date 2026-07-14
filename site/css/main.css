@@ -1,0 +1,212 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d0f14;
+  --surface:  #181b22;
+  --border:   #2a2d38;
+  --accent:   #4fa3e0;
+  --accent-h: #6bb8f5;
+  --text:     #d4d8e2;
+  --muted:    #6b7080;
+  --error:    #e05c4f;
+  --ok:       #4fc87a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 1.5rem;
+  gap: 2rem;
+}
+
+header { text-align: center; }
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: #fff;
+}
+
+h1 span { color: var(--accent); }
+
+header p {
+  margin-top: .5rem;
+  color: var(--muted);
+  max-width: 48ch;
+}
+
+main {
+  width: 100%;
+  max-width: 540px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over { border-color: var(--accent); background: #1a1f2e; }
+
+.drop-zone svg { color: var(--muted); }
+.drop-zone.drag-over svg { color: var(--accent); }
+
+.drop-zone p { color: var(--muted); font-size: .9rem; }
+.drop-zone p strong { color: var(--text); }
+
+.drop-zone input[type="file"] { display: none; }
+
+/* File chip shown after selection */
+.file-chip {
+  display: none;
+  align-items: center;
+  gap: .6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .5rem .85rem;
+  font-size: .875rem;
+}
+
+.file-chip.visible { display: flex; }
+
+.file-chip .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.file-chip .size { color: var(--muted); white-space: nowrap; }
+
+.file-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+.file-chip button:hover { color: var(--error); }
+
+/* Action button */
+.btn-convert {
+  padding: .7rem 1.5rem;
+  border-radius: 7px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background .15s;
+  width: 100%;
+}
+
+.btn-convert:hover:not(:disabled) { background: var(--accent-h); }
+
+.btn-convert:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+/* Status / result */
+.status {
+  display: none;
+  border-radius: 7px;
+  padding: .75rem 1rem;
+  font-size: .875rem;
+  line-height: 1.5;
+}
+
+.status.visible { display: block; }
+.status.error   { background: #2a1614; border: 1px solid #5c2520; color: var(--error); }
+.status.ok      { background: #112214; border: 1px solid #1e4d2e; color: var(--ok); }
+.status.info    { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+
+/* Download button */
+.btn-download {
+  display: none;
+  padding: .7rem 1.5rem;
+  border-radius: 7px;
+  border: 1px solid var(--ok);
+  background: transparent;
+  color: var(--ok);
+  font: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background .15s;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn-download:hover { background: #112214; }
+.btn-download.visible { display: block; }
+
+/* Info section */
+details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+summary {
+  padding: .75rem 1rem;
+  cursor: pointer;
+  font-size: .875rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+summary:hover { color: var(--text); }
+
+.details-body {
+  padding: .25rem 1rem 1rem;
+  font-size: .875rem;
+  color: var(--muted);
+  line-height: 1.7;
+  border-top: 1px solid var(--border);
+}
+
+.details-body p + p { margin-top: .6rem; }
+.details-body code {
+  background: #0d0f14;
+  border-radius: 3px;
+  padding: .1em .35em;
+  font-size: .85em;
+  color: var(--accent);
+}
+
+footer {
+  color: var(--muted);
+  font-size: .8rem;
+  text-align: center;
+}
+
+footer a { color: inherit; }

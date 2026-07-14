@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "postbuild": "cp src/index.html dist/index.html",
+    "postbuild": "npx eleventy",
     "test": "vitest run src",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots"
@@ -15,6 +15,7 @@
   "license": "GPL-2.0-only",
   "type": "module",
   "devDependencies": {
+    "@11ty/eleventy": "^3.1.6",
     "@playwright/test": "^1.61.1",
     "@types/node": "^25.9.3",
     "typescript": "^6.0.3",
