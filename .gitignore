@@ -3,3 +3,9 @@ dist/
 *.gla
 *.glm
 !src/testdata/*
+
+# Playwright run artifacts. NOT e2e/**/*-snapshots/ — those are the
+# committed baselines and are the whole point of this tooling.
+/test-results/
+/playwright-report/
+/blob-report/
