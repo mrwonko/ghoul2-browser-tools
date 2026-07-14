@@ -17,11 +17,14 @@ node dist/print-cli.js <file.glm>                     # inspect surfaces and bon
 node dist/convert-cli.js <input.glm> <output.glm>    # convert JK3 → JK2
 ./ci.sh [--skip-tests]                                # npm ci, then npm test unless --skip-tests
 ./deploy.sh                                            # ci.sh --skip-tests, build, rsync dist/ to the deploy target (CI-only; see deploy.md)
+./visual-test.sh                                       # npm ci, build, npm run test:visual (CI-only; runs in the pinned Playwright container — see e2e/)
+./visual-test-local.sh                                 # run the visual suite locally against committed baselines via Podman, same pinned image as CI (does not update baselines)
+./visual-test-update.sh                                # regenerate e2e/ baseline PNGs/aria snapshots locally via Podman, same pinned image as CI
 ```
 
-No runtime npm packages — TypeScript and vitest are the only devDependencies.
+No runtime npm packages — TypeScript, vitest, and Playwright (`@playwright/test`) are the only devDependencies.
 
-`.github/workflows/ci.yml` runs `ci.sh` on every push/PR, then (on `main` only, once `ci.sh` succeeds) a `deploy` job runs `deploy.sh` to rsync `dist/` to the production server. `deploy.md` is the one-time, copy-pasteable server-side setup (SSH keypair, `authorized_keys` `rrsync` restriction, GitHub secrets) that this workflow depends on — it's a manual step outside of CI's control.
+`.github/workflows/ci.yml` runs `ci.sh` on every push/PR, then (on `main` only, once `ci.sh` and the `visual` job both succeed) a `deploy` job runs `deploy.sh` to rsync `dist/` to the production server. The `visual` job runs `visual-test.sh` inside the pinned `mcr.microsoft.com/playwright:vX.Y.Z-noble` container image (see `e2e/`) and uploads `playwright-report/` as an artifact on failure. `deploy.md` is the one-time, copy-pasteable server-side setup (SSH keypair, `authorized_keys` `rrsync` restriction, GitHub secrets) that this workflow depends on — it's a manual step outside of CI's control.
 
 ## Source structure
 
@@ -37,6 +40,7 @@ No runtime npm packages — TypeScript and vitest are the only devDependencies.
 - **`ci.sh`** — `npm ci`, then `npm test` unless called with `--skip-tests`.
 - **`deploy.sh`** — CI-only: `ci.sh --skip-tests`, `npm run build`, then `rsync --delete` of `dist/` to the production server over SSH. See `deploy.md` for the required env vars and one-time server-side setup.
 - **`deploy.md`** — one-time, manual server-side deploy setup spec (deploy keypair, `authorized_keys` `rrsync` restriction, GitHub Actions secrets). Not run by CI; a human runs this once.
+- **`e2e/`** — Playwright screenshot-snapshot tests (`playwright.config.ts` at repo root). `visual.spec.ts` screenshots the built `dist/` site, served locally by the dependency-free `e2e/serve.mjs`, and compares against committed baselines in `e2e/visual.spec.ts-snapshots/` (`converter-page-chromium-linux.png` plus an accessibility-tree `converter-page.aria.yml`, which is resilient to font-rendering noise that would otherwise show up as a spurious pixel diff). Run via `./visual-test.sh` (builds, then runs Playwright — mirrors `ci.sh`; this is what CI's `visual` job runs, already inside the pinned container) or `npm run test:visual` if `dist/` is already fresh **and** you're already running inside that same pinned image — running it bare on an arbitrary host is unreliable, since `system-ui` font rendering (and the Chromium build) differs across OSes and would produce false diffs against the committed baselines. To just run the suite locally on a bare host without changing the baselines, use `./visual-test-local.sh` (Podman, same pinned image as CI). **Baselines must be regenerated inside that exact pinned `mcr.microsoft.com/playwright:vX.Y.Z-noble` image, too** — run `./visual-test-update.sh` (uses Podman locally with `--userns=keep-id` so the committed PNG comes back owned by your host user, not root) rather than on a bare host.
 
 ## Domain: Ghoul2 Binary Formats
 
@@ -73,3 +77,4 @@ Rationale for non-obvious implementation choices lives in `decisions/`, one file
 - `decisions/animname-check.md` — why a non-humanoid `animName` warns-and-confirms instead of failing or converting silently.
 - `decisions/coding-conventions.md` — in-place `DataView` mutation for GLM conversion vs. immutable-source-plus-view for planned GLA splicing; offsets relative to containing struct; generator-based iteration.
 - `decisions/deploy-pipeline.md` — why `index.html` lives in `src/` and is edited directly rather than generated; why deploy is a `needs: test` job in `ci.yml` rather than a separate workflow; why the deploy SSH key is `rrsync -wo`-restricted.
+- `decisions/visual-regression-testing.md` — why CI and local baseline regeneration both pin the exact same `mcr.microsoft.com/playwright:vX.Y.Z-noble` image (Podman locally, Docker container in CI); Chromium-only scoping; a separate `visual` CI job/container instead of folding into `test`; explicit `viewport`/`deviceScaleFactor` pinning instead of `devices['Desktop Chrome']`.

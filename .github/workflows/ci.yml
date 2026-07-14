@@ -16,8 +16,43 @@ jobs:
           node-version: 22
       - run: ./ci.sh
 
-  deploy:
+  visual:
     needs: test
+    runs-on: ubuntu-latest
+    container:
+      # Keep this tag in lockstep with @playwright/test's version in
+      # package.json (and with visual-test-update.sh's PLAYWRIGHT_IMAGE)
+      # whenever Playwright is upgraded — the image's bundled browsers must
+      # match the installed @playwright/test version exactly, or Playwright
+      # won't find the browser executables it expects.
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      # Chromium's sandbox refuses to run as root; pwuser is the non-root
+      # account the image ships specifically for this. --ipc=host is
+      # Playwright's own recommendation for Chromium stability in containers
+      # (the default 64MB /dev/shm can otherwise crash the browser); low risk
+      # for today's single static page, but cheap to add now ahead of the
+      # WebGL/Mesa testing decisions/visual-regression-testing.md already
+      # names this image as a prerequisite for.
+      options: --user pwuser --ipc=host
+    # No explicit actions/setup-node pin here, unlike test/deploy: this job
+    # relies on the Node version bundled in the pinned Playwright image above
+    # (currently v24) rather than the 22 those jobs pin. That bundled Node is
+    # the one Microsoft actually tests each Playwright release against, and
+    # tsc's output isn't Node-version-sensitive, so pinning a different
+    # version here would trade a tested pairing for an untested one with no
+    # corresponding benefit.
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./visual-test.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  deploy:
+    needs: [test, visual]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
