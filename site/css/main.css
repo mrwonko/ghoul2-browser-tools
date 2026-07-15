@@ -64,10 +64,11 @@ main {
   gap: 1.25rem;
 }
 
-/* Landing page tool grid */
+/* Landing page tool list: one card per row — the page is narrow and won't
+   have enough tools any time soon to justify a multi-column grid. */
 .tool-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
   width: 100%;
 }
