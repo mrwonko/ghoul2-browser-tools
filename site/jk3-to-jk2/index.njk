@@ -1,0 +1,49 @@
+---
+layout: base.njk
+title: JK3 → JK2 Player Model Converter
+---
+  <header>
+    <h1>JK3 <span>→</span> JK2 Player Model Converter</h1>
+    <p>Automatically ports Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast. Runs entirely in your browser — no upload, no server.</p>
+  </header>
+
+  <main>
+
+    <label class="drop-zone" id="dropZone">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Upload">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p><strong>Drop your .glm file here</strong><br>or click to browse</p>
+      <input type="file" id="fileInput" accept=".glm">
+    </label>
+
+    <div class="file-chip" id="fileChip">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span class="name" id="chipName"></span>
+      <span class="size" id="chipSize"></span>
+      <button id="clearFile" title="Remove file">✕</button>
+    </div>
+
+    <button class="btn-convert" id="btnConvert" disabled>Convert</button>
+
+    <div class="status" id="status"></div>
+
+    <a class="btn-download" id="btnDownload" download>Download converted .glm</a>
+
+    <details>
+      <summary>How does this work?</summary>
+      <div class="details-body">
+        <p>JK3 and JK2 both use the <strong>Ghoul2</strong> (<code>.glm</code>) format for player models, but with different skeletons and bone indices. This tool remaps each surface's bone references from JK3 indices to their JK2 equivalents.</p>
+        <p>The vertex bone weights are stored as indices into the surface's own bone reference table — not the global skeleton — so they don't change.</p>
+        <p>Three JK3 bones have no JK2 equivalent: <code>ltail</code> and <code>rtail</code> (unused in player models) and <code>lhang_tag_bone</code> (mapped to <code>lhand</code>).</p>
+      </div>
+    </details>
+
+  </main>
+
+  <script type="module" src="app.js"></script>

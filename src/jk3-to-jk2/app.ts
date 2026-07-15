@@ -1,5 +1,5 @@
-import { convertGlm } from './converter.js';
-import { parseHeader } from './glm.js';
+import { convertGlm } from '../converter.js';
+import { parseHeader } from '../glm.js';
 
 const EXPECTED_ANIM = 'models/players/_humanoid/_humanoid';
 
