@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "npx eleventy",
-    "test": "vitest run src",
+    "test": "vitest run src site",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots"
   },
