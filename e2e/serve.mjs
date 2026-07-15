@@ -26,7 +26,7 @@ createServer(async (req, res) => {
     res.end();
     return;
   }
-  const relative = requestPath === '/' ? 'index.html' : requestPath.slice(1);
+  const relative = requestPath.endsWith('/') ? requestPath.slice(1) + 'index.html' : requestPath.slice(1);
   // Resolve against root and verify the result is still rooted there, rather
   // than trying to enumerate/strip `..` segments ourselves — `resolve()`
   // collapses `.`/`..` the same way the filesystem would, so there's no

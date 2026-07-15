@@ -1,0 +1,20 @@
+- navigation:
+  - link "Ghoul2 Browser Tools":
+    - /url: .
+- banner:
+  - heading "Ghoul2 Browser Tools" [level=1]
+  - paragraph:
+    - text: Browser-based tools for working with Jedi Knight 2/3's Ghoul2 (
+    - code: .glm
+    - text: /
+    - code: .gla
+    - text: ) model & skeletal animation formats. Runs entirely in your browser — no upload, no server.
+- main:
+  - 'link "JK3 → JK2 Player Model Converter Automatically ports Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast. Runs entirely in your browser — no upload, no server."':
+    - /url: jk3-to-jk2/
+    - heading "JK3 → JK2 Player Model Converter" [level=2]
+    - paragraph: "Automatically ports Jedi Knight: Jedi Academy player models to Jedi Knight 2: Jedi Outcast. Runs entirely in your browser — no upload, no server."
+- contentinfo:
+  - link "Source on GitHub":
+    - /url: https://github.com/mrwonko/ghoul2-browser-tools
+  - text: — GPLv2

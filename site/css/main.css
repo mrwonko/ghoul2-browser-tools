@@ -24,6 +24,21 @@ body {
   gap: 2rem;
 }
 
+/* Shared site nav */
+.site-nav {
+  width: 100%;
+  max-width: 540px;
+}
+
+.site-nav__brand {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.site-nav__brand:hover { color: var(--accent); }
+
 header { text-align: center; }
 
 h1 {
@@ -47,6 +62,40 @@ main {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* Landing page tool list: one card per row — the page is narrow and won't
+   have enough tools any time soon to justify a multi-column grid. */
+.tool-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+}
+
+.tool-card:hover { border-color: var(--accent); background: #1a1f2e; }
+
+.tool-card h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.tool-card p {
+  color: var(--muted);
+  font-size: .875rem;
 }
 
 /* Drop zone */
