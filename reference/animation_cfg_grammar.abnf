@@ -1,0 +1,196 @@
+; ABNF (RFC 5234) grammar for the animation.cfg and animevents.cfg text
+; formats, derived from BG_ParseAnimationFile / BG_ParseAnimationEvtFile /
+; ParseAnimationEvtBlock and the shared COM_Parse/COM_ParseExt tokenizer in
+; reference/ja_animation_parse.c.
+;
+; Scope and assumptions:
+;   - This grammar is meant to be lossless: a parser built from it needs to
+;     round-trip a file byte-for-byte (comments, exact inter-token
+;     whitespace, and any tolerated stray content all have to survive a
+;     read-then-write cycle unchanged). That's why every "the original
+;     engine doesn't recognize this" case below is modeled as its own
+;     bounded grammar alternative, rather than being waved off as an error
+;     path outside the grammar. Capturing the *contents* of `sep` (and of
+;     each `token`) verbatim for reproduction is the job of the parser we
+;     build from this spec, not something that changes the grammar's shape.
+;   - Table-size limits (MAX_ANIMATIONS, MAX_ANIM_EVENTS, MAX_TOKEN_CHARS,
+;     etc.) are the engine's own runtime array bounds, not part of the file
+;     format, and are intentionally left out — mods rebuild with different
+;     limits.
+;   - Identifiers (anim names, event-type names, channel/footstep names,
+;     "include"/"UPPEREVENTS"/"LOWEREVENTS") are matched case-insensitively
+;     throughout the source (Q_stricmp/Q_stricmpn). RFC 5234 §2.3 already
+;     makes quoted-string terminals case-insensitive by default, so this
+;     needs no extra grammar machinery.
+;   - Core rules DIGIT and DQUOTE used per RFC 5234 Appendix B.1.
+
+; === Shared tokenizer (COM_Parse / COM_ParseExt) ===
+;
+; Every field in both file formats is one whitespace/comment-delimited
+; token. COM_Parse always allows line breaks within its token stream, so
+; records aren't line-based - whitespace and comments are freely
+; interchangeable separators wherever a token boundary is expected.
+
+sep           = 1*(ws-char / line-comment / block-comment)
+ws-char       = %x01-20
+                ; whatever SkipWhitespace treats as whitespace: any byte
+                ; from 0x01 to 0x20 inclusive, not just the four values
+                ; RFC 5234's WSP/CR/LF core rules cover - e.g. vertical tab
+                ; and form feed count too. A literal NUL (0x00) is handled
+                ; separately by SkipWhitespace as true end of file, not a
+                ; skippable separator.
+line-comment  = "//" *(%x00-09 / %x0B-10FFFF)
+                ; runs to the next LF, or to end of file if there isn't one
+block-comment = "/*" comment-body ["*/"]
+                ; matches up to (and excludes) the first "*/"; if none is
+                ; found, the comment - and therefore the file - simply ends
+                ; there, same as an unterminated quoted-token
+comment-body  = *(non-star / (1*"*" not-slash)) *"*"
+                ; "a string not containing '*/' as a substring", the usual
+                ; construction for excluding a multi-character delimiter
+                ; from free-form content whose own characters ('*') can
+                ; still appear singly within it - a plain *(%x00-10FFFF)
+                ; wouldn't pin down "first occurrence" on its own, since
+                ; ABNF repetition has no inherent greedy/lazy behavior; this
+                ; mirrors how quoted-token excludes DQUOTE below, just
+                ; extended to a two-character delimiter. The trailing *"*"
+                ; matters: without it, a body of a single bare "*" (e.g.
+                ; "/***/") has nowhere to go, since every star would
+                ; otherwise be forced to pair with a following character.
+non-star      = %x00-29 / %x2B-10FFFF   ; any octet other than '*' (0x2A)
+not-slash     = %x00-2E / %x30-10FFFF   ; any octet other than '/' (0x2F)
+
+token         = quoted-token / bare-token
+quoted-token  = DQUOTE *(%x00-21 / %x23-10FFFF) [DQUOTE]
+                ; contents are copied verbatim, no escape handling; an
+                ; unterminated quote runs to end of file
+bare-token    = 1*(%x21-10FFFF)
+                ; any run of bytes above 0x20 (space); comments are only
+                ; recognized where a *new* token would start, so a bare
+                ; token can itself contain "//", "/*", or '"' after its
+                ; first character
+
+integer       = ["-"] 1*DIGIT
+                ; parsed with atoi: only the leading run of digits matters;
+                ; anything after the first non-digit character is ignored
+                ; rather than rejected
+number        = ["-"] (1*DIGIT ["." *DIGIT] / "." 1*DIGIT)
+                ; parsed with atof; same "trailing junk is ignored, not
+                ; rejected" note as integer
+
+; === animation.cfg ===
+;
+; BG_ParseAnimationFile: an unconditional stream of 5-token records. Order
+; doesn't matter and there's no block structure. anim-name is looked up
+; against a built-in animation-name table at runtime, but that lookup has
+; no bearing on the file's syntax - an unrecognized name is still an
+; ordinary, valid anim-name token, carried through as-is.
+
+animation-cfg-file = *sep *(anim-entry *sep)
+anim-entry         = anim-name sep first-frame sep num-frames sep loop-frames sep fps
+
+anim-name          = token
+first-frame        = integer
+num-frames         = integer
+loop-frames        = integer
+fps                = number
+                     ; negative means "play backwards"; 0 is treated as 1
+
+; === animevents.cfg ===
+;
+; BG_ParseAnimationEvtFile + ParseAnimationEvtBlock. Top level is a
+; sequence of directives; as with anim-name above, any keyword-driven
+; branch that doesn't match a known keyword is a normal (bounded)
+; alternative here, not an error condition.
+
+animevents-cfg-file = *sep *(directive *sep)
+
+directive          = include-directive / events-block / stray-directive
+stray-directive    = token
+                     ; anything other than "include"/"UPPEREVENTS"/
+                     ; "LOWEREVENTS" - this token is simply consumed as its
+                     ; own (inert) directive
+
+include-directive  = "include" sep include-path
+include-path       = token
+                     ; a player-model directory name; the loader appends it
+                     ; between "models/players/" and "/animevents.cfg" to
+                     ; find the included file, which is itself a complete
+                     ; file of this same animevents-cfg-file grammar
+
+events-block       = block-keyword sep *(token sep) "{" sep *(event-entry sep) "}"
+                     ; the *(token sep) mirrors the real parser: it skips
+                     ; forward over anything at all in search of the next
+                     ; "{", rather than requiring the block body to open
+                     ; immediately
+block-keyword      = "UPPEREVENTS" / "LOWEREVENTS"
+
+event-entry        = anim-name sep entry-body
+entry-body         = known-args-entry / bare-entry
+known-args-entry   = event-type sep frame-offset sep event-args
+bare-entry         = token
+                     ; event-type didn't match one of the six keywords
+                     ; below - this also covers AEV_SABER_SWING and
+                     ; AEV_SABER_SPIN, which are recognized *names* (present
+                     ; in the lookup table) but have no argument case in
+                     ; the source; writing one directly is a no-op. They're
+                     ; normally produced indirectly, when an AEV_SOUND
+                     ; entry's sound-path matches a magic saber-sound
+                     ; prefix (see sound-path below), not written directly.
+                     ; Either way, no further tokens belong to this entry -
+                     ; the next token starts a fresh anim-name attempt.
+
+frame-offset       = integer
+                     ; added to this anim's first-frame from animation.cfg
+
+event-type         = "AEV_SOUND" / "AEV_SOUNDCHAN" / "AEV_FOOTSTEP"
+                   / "AEV_EFFECT" / "AEV_FIRE" / "AEV_MOVE"
+
+event-args         = sound-args / soundchan-args / footstep-args
+                   / effect-args / fire-args / move-args
+                     ; which alternative applies is determined by the
+                     ; event-type that preceded it, not by the shape of the
+                     ; arguments themselves
+
+sound-args         = sound-path sep random-low sep random-high sep chance
+soundchan-args     = channel sep sound-path sep random-low sep random-high sep chance
+footstep-args      = footstep-type sep chance
+effect-args        = effect-path sep bolt-name sep chance
+fire-args          = alt-fire sep chance
+move-args          = forward-push sep right-push sep up-push
+
+sound-path         = token
+                     ; e.g. "sound/chars/kyle/misc/pain1.mp3". A "%d"-style
+                     ; sprintf placeholder combined with random-low/
+                     ; random-high > 0 picks a random numbered variant
+                     ; instead of one fixed file. A leading "*" marks a
+                     ; custom/dynamic sound (not looked up as a file). If
+                     ; this path matches a built-in saber-sound prefix
+                     ; ("sound/weapons/saber/saberhup..." or
+                     ; "...saberspin..."), the engine silently reclassifies
+                     ; the whole entry as AEV_SABER_SWING/AEV_SABER_SPIN at
+                     ; runtime - a semantic effect, not a syntax one.
+random-low         = integer
+random-high        = integer
+chance             = integer
+                     ; a percentage by convention; not range-checked
+
+channel            = "CHAN_VOICE_ATTEN" / "CHAN_VOICE_GLOBAL" / "CHAN_ANNOUNCER"
+                   / "CHAN_BODY" / "CHAN_WEAPON" / "CHAN_VOICE" / token
+                     ; any value other than the six listed silently
+                     ; defaults to CHAN_AUTO at runtime
+
+footstep-type      = "FOOTSTEP_R" / "FOOTSTEP_L" / "FOOTSTEP_HEAVY_R" / "FOOTSTEP_HEAVY_L" / token
+                     ; unlike channel, an unrecognized value has no default -
+                     ; it's simply stored as an unmatched index at runtime
+
+effect-path        = token
+
+bolt-name          = "none" / "NULL" / token
+                     ; "none"/"NULL" mean "no bolt"; anything else is used
+                     ; as a literal bolt-tag name
+
+alt-fire           = integer
+forward-push       = integer
+right-push         = integer
+up-push            = integer

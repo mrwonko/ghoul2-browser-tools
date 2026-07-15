@@ -51,6 +51,8 @@ JK3 and JK2 both use the Ghoul2 (GL2) format for player models. A player model c
 
 The format specification is in `reference/mdx_format.h` (copied from OpenJK). All offset fields in file structs are **relative to the struct that contains them**, not the file start.
 
+Each player model also has an `animation.cfg` (per-anim frame ranges/fps) and an optional `animevents.cfg` (per-frame sound/effect/footstep/etc. triggers) — plain-text, not Ghoul2 binary. `reference/ja_animation_parse.c` is a GPLv2 excerpt of JA's parser for both (`BG_ParseAnimationFile`/`BG_ParseAnimationEvtFile`/`ParseAnimationEvtBlock` plus the shared `COM_Parse` tokenizer); `reference/animation_cfg_grammar.abnf` is the ABNF grammar derived from it, ahead of the future animation.cfg and animevents.cfg parser stories.
+
 ### Key conversion challenge
 
 JK3 and JK2 use **different skeletons** with different bone indices. The conversion must remap the `boneReferences` array in each `mdxmSurface_t` from JK3 global bone indices to JK2 global bone indices, by matching bones by name via `mdxaSkel_t.name`. The per-vertex bone index bits in `uiNmWeightsAndBoneIndexes` are indices into the surface's own `boneReferences` array (not the global skeleton), so they do not need to change.
