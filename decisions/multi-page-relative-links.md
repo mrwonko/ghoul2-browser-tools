@@ -24,16 +24,4 @@ An alternative considered: an explicit `root: ".."` front-matter field set by ha
 
 ## `e2e/serve.mjs`: directory-index fallback generalized to any trailing slash
 
-The dev server backing the Playwright suite originally special-cased the literal root only:
-
-```js
-const relative = requestPath === '/' ? 'index.html' : requestPath.slice(1);
-```
-
-A request for `/jk3-to-jk2/` isn't `/` exactly, so it fell through to `requestPath.slice(1)` = `"jk3-to-jk2/"`, which `resolve()`s to a directory; `readFile()` on a directory throws (`EISDIR`), caught and turned into a 404 — breaking `page.goto('/jk3-to-jk2/')` outright, not just producing a rendering diff. Generalized to any trailing-slash request:
-
-```js
-const relative = requestPath.endsWith('/') ? requestPath.slice(1) + 'index.html' : requestPath.slice(1);
-```
-
-This keeps `resolve()` + prefix-check as the only path-safety mechanism (`decisions/visual-regression-testing.md` point 6) — no new traversal surface introduced. It's scoped to trailing-slash requests only, not extended to also `stat()`-detect directories for slash-less requests, because every internal link this project writes (`tools.json`'s `href` values, the nav home link via `fromRoot`) already carries a trailing slash on directory URLs; a real production static-file server (nginx/Apache/Caddy default config) already handles the slash-less case anyway, and that's outside this repo per `deploy.md`.
+The dev server backing the Playwright suite resolves any trailing-slash request path to that directory's `index.html` (`requestPath.endsWith('/')`), rather than special-casing the literal root, so `/jk3-to-jk2/` resolves the same way `/` does — matching how a real production static-file server (nginx/Apache/Caddy default config) serves subdirectories. This keeps `resolve()` + prefix-check as the only path-safety mechanism (`decisions/visual-regression-testing.md` point 6) — no new traversal surface introduced.
