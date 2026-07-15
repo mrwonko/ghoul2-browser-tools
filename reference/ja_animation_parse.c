@@ -1047,3 +1047,24 @@ char *COM_ParseExt(const char **data_p, qboolean allowLineBreaks)
     *data_p = (char *)data;
     return com_token;
 }
+
+const char *SkipWhitespace(const char *data, qboolean *hasNewLines)
+{
+    int c;
+
+    while ((c = *data) <= ' ')
+    {
+        if (!c)
+        {
+            return NULL;
+        }
+        if (c == '\n')
+        {
+            com_lines++;
+            *hasNewLines = qtrue;
+        }
+        data++;
+    }
+
+    return data;
+}

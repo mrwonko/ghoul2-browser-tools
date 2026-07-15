@@ -22,7 +22,7 @@
 ;     throughout the source (Q_stricmp/Q_stricmpn). RFC 5234 §2.3 already
 ;     makes quoted-string terminals case-insensitive by default, so this
 ;     needs no extra grammar machinery.
-;   - Core rules WSP, CR, LF, DIGIT, DQUOTE used per RFC 5234 Appendix B.1.
+;   - Core rules DIGIT and DQUOTE used per RFC 5234 Appendix B.1.
 
 ; === Shared tokenizer (COM_Parse / COM_ParseExt) ===
 ;
@@ -31,7 +31,14 @@
 ; records aren't line-based - whitespace and comments are freely
 ; interchangeable separators wherever a token boundary is expected.
 
-sep           = 1*(WSP / CR / LF / line-comment / block-comment)
+sep           = 1*(ws-char / line-comment / block-comment)
+ws-char       = %x01-20
+                ; whatever SkipWhitespace treats as whitespace: any byte
+                ; from 0x01 to 0x20 inclusive, not just the four values
+                ; RFC 5234's WSP/CR/LF core rules cover - e.g. vertical tab
+                ; and form feed count too. A literal NUL (0x00) is handled
+                ; separately by SkipWhitespace as true end of file, not a
+                ; skippable separator.
 line-comment  = "//" *(%x00-09 / %x0B-10FFFF)
                 ; runs to the next LF, or to end of file if there isn't one
 block-comment = "/*" comment-body ["*/"]
