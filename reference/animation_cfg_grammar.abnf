@@ -34,9 +34,24 @@
 sep           = 1*(WSP / CR / LF / line-comment / block-comment)
 line-comment  = "//" *(%x00-09 / %x0B-10FFFF)
                 ; runs to the next LF, or to end of file if there isn't one
-block-comment = "/*" *(%x00-10FFFF) "*/"
-                ; matches up to the first "*/"; if none is found, the
-                ; comment (and therefore the file) simply ends there
+block-comment = "/*" comment-body ["*/"]
+                ; matches up to (and excludes) the first "*/"; if none is
+                ; found, the comment - and therefore the file - simply ends
+                ; there, same as an unterminated quoted-token
+comment-body  = *(non-star / (1*"*" not-slash)) *"*"
+                ; "a string not containing '*/' as a substring", the usual
+                ; construction for excluding a multi-character delimiter
+                ; from free-form content whose own characters ('*') can
+                ; still appear singly within it - a plain *(%x00-10FFFF)
+                ; wouldn't pin down "first occurrence" on its own, since
+                ; ABNF repetition has no inherent greedy/lazy behavior; this
+                ; mirrors how quoted-token excludes DQUOTE below, just
+                ; extended to a two-character delimiter. The trailing *"*"
+                ; matters: without it, a body of a single bare "*" (e.g.
+                ; "/***/") has nowhere to go, since every star would
+                ; otherwise be forced to pair with a following character.
+non-star      = %x00-29 / %x2B-10FFFF   ; any octet other than '*' (0x2A)
+not-slash     = %x00-2E / %x30-10FFFF   ; any octet other than '/' (0x2F)
 
 token         = quoted-token / bare-token
 quoted-token  = DQUOTE *(%x00-21 / %x23-10FFFF) [DQUOTE]
