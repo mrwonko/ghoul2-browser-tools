@@ -278,7 +278,9 @@ describe('tokenize', () => {
   });
 
   it('round-trips a source string exercising several token kinds at once', () => {
-    const source = 'foo "bar baz" // trailing comment\n/* block\ncomment */ next"unterminated';
+    const source = `foo "bar baz" // trailing comment
+/* block
+comment */ next"unterminated`;
     const tokens = [...tokenize(source)];
     const reconstructed = tokens.map((t) => source.slice(t.start.offset, t.end.offset)).join('');
     expect(reconstructed).toBe(source);
