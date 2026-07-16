@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { Position, Token } from './token.js';
+import type { Position, Token, TokenBase } from './token.js';
 import {
   CommonToken,
   CommonTokenExtra,
@@ -70,24 +70,27 @@ type WithRelativeOffsets<T> = {
   [K in keyof T]: T[K] extends Position ? RelativeOffset : T[K];
 };
 
-/** The part of a `TokenFixture` shared by every kind, independent of that
- *  kind's own extra data: the literal source text this fixture contributes
- *  (its `start`/`end` span is implied by where it falls in the concatenated
- *  input, never stated) plus the kind itself and any warnings expected on
- *  the resulting token (`[]` when omitted). */
-interface TokenFixtureBase<Kind, Warning> {
+/**
+ * The part of a `TokenFixture` shared by every kind, independent of that
+ * kind's own extra data. Built on `Token`'s own `TokenBase<Kind, Warning>`
+ * (`kind`/`start`/`end`/`warnings`) rather than repeating those fields by
+ * hand, dropping the two that don't apply to a fixture (`start`/`end` are
+ * implied by where a fixture's `source` falls in the concatenated input,
+ * never stated) and loosening `warnings` from `TokenBase`'s required
+ * `ReadonlyArray<Warning>` to optional — most fixtures flag nothing, and
+ * `buildFixture()` below defaults an omitted `warnings` to `[]`.
+ */
+type TokenFixtureBase<Kind, Warning> = Omit<TokenBase<Kind, Warning>, 'start' | 'end' | 'warnings'> & {
   readonly source: string;
-  readonly kind: Kind;
   readonly warnings?: ReadonlyArray<Warning>;
-}
+};
 
 /**
  * Mirrors `Token<Kind, Warning, ExtraByKind>` (`src/token.ts`) exactly —
  * same mapped-type-over-a-union-then-indexed-access trick to build a
  * discriminated union — except it's the recipe for a token rather than the
- * token itself: `TokenFixtureBase` stands in for `Token`'s own
- * `kind`/`start`/`end`/`warnings` fields, and any `Position` field in a
- * kind's extra data becomes a `RelativeOffset`.
+ * token itself: `TokenFixtureBase` stands in for `Token`'s base fields, and
+ * any `Position` field in a kind's extra data becomes a `RelativeOffset`.
  */
 type TokenFixture<
   Kind extends string,

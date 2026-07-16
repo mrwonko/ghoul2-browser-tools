@@ -20,30 +20,37 @@ export interface Position {
  * consumer never sees a warning value that could only come from some other
  * parser, and vice versa.
  */
+/**
+ * The fields every `Token<Kind, Warning, ExtraByKind>` carries regardless of
+ * `Kind`, factored out so other modules (notably `commonTokenizer.test.ts`'s
+ * fixture DSL) can build on the same shape instead of hand-repeating it.
+ */
+export interface TokenBase<Kind, Warning> {
+  readonly kind: Kind;
+  readonly start: Position;
+  readonly end: Position; // exclusive: one past the last code unit spanned
+  /**
+   * Every anomaly flagged for this token; `[]` when there's nothing to
+   * flag (never optional/undefined, so callers don't need an extra
+   * undefined-check). A token can be anomalous in more than one way at
+   * once — e.g. an unterminated quoted token whose content also reaches
+   * `MAX_TOKEN_CHARS` carries both `UnterminatedQuotedToken` and
+   * `TokenTooLong`.
+   *
+   * Each entry here implicitly spans this token's own `start`/`end`. A
+   * future parser that aggregates multiple underlying tokens into one
+   * higher-level result might eventually want each warning to instead
+   * carry its own `start`/`end` (distinct from the aggregate token's own
+   * span) — this is a deliberately deferred idea, not a TODO, since
+   * nothing today exercises or could verify that generalization.
+   */
+  readonly warnings: ReadonlyArray<Warning>;
+}
+
 export type Token<
   Kind extends string,
   Warning extends string,
   ExtraByKind extends Partial<Record<Kind, object>> = Record<never, never>,
 > = {
-  [K in Kind]: {
-    readonly kind: K;
-    readonly start: Position;
-    readonly end: Position; // exclusive: one past the last code unit spanned
-    /**
-     * Every anomaly flagged for this token; `[]` when there's nothing to
-     * flag (never optional/undefined, so callers don't need an extra
-     * undefined-check). A token can be anomalous in more than one way at
-     * once — e.g. an unterminated quoted token whose content also reaches
-     * `MAX_TOKEN_CHARS` carries both `UnterminatedQuotedToken` and
-     * `TokenTooLong`.
-     *
-     * Each entry here implicitly spans this token's own `start`/`end`. A
-     * future parser that aggregates multiple underlying tokens into one
-     * higher-level result might eventually want each warning to instead
-     * carry its own `start`/`end` (distinct from the aggregate token's own
-     * span) — this is a deliberately deferred idea, not a TODO, since
-     * nothing today exercises or could verify that generalization.
-     */
-    readonly warnings: ReadonlyArray<Warning>;
-  } & (K extends keyof ExtraByKind ? ExtraByKind[K] : unknown);
+  [K in Kind]: TokenBase<K, Warning> & (K extends keyof ExtraByKind ? ExtraByKind[K] : unknown);
 }[Kind];
