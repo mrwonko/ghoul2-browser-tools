@@ -39,9 +39,11 @@ export interface CommonTokenExtra {
     /**
      * Span of the string's content, excluding the surrounding quotes. If
      * `contentEnd` equals the token's own `end`, there was no closing quote
-     * before EOF/NUL; that case additionally carries
-     * `warning: CommonTokenWarning.UnterminatedQuotedToken`, mirroring
-     * `CommonTokenWarning.UnterminatedBlockComment` for block comments.
+     * before EOF/NUL; that case additionally adds
+     * `CommonTokenWarning.UnterminatedQuotedToken` to `warnings`, mirroring
+     * `CommonTokenWarning.UnterminatedBlockComment` for block comments (and
+     * can coexist with `CommonTokenWarning.TokenTooLong` in the same array,
+     * if the unterminated content also reaches `MAX_TOKEN_CHARS`).
      */
     readonly contentStart: Position;
     readonly contentEnd: Position;
@@ -127,7 +129,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
     // true end of input
     if (c === -1) {
       const start = position();
-      yield { kind: CommonTokenKind.Eof, start, end: start, reason: EofReason.EndOfInput };
+      yield { kind: CommonTokenKind.Eof, start, end: start, reason: EofReason.EndOfInput, warnings: [] };
       return;
     }
 
@@ -140,7 +142,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         start,
         end: position(),
         reason: EofReason.EmbeddedNull,
-        warning: CommonTokenWarning.EmbeddedNull,
+        warnings: [CommonTokenWarning.EmbeddedNull],
       };
       return;
     }
@@ -153,7 +155,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         stepChar();
         wc = peekChar();
       } while (wc >= WS_MIN && wc <= WS_MAX);
-      yield { kind: CommonTokenKind.Whitespace, start, end: position() };
+      yield { kind: CommonTokenKind.Whitespace, start, end: position(), warnings: [] };
       continue;
     }
 
@@ -169,7 +171,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         if (lc === -1 || lc === NUL || lc === LF) break;
         stepChar();
       }
-      yield { kind: CommonTokenKind.LineComment, start, end: position() };
+      yield { kind: CommonTokenKind.LineComment, start, end: position(), warnings: [] };
       continue;
     }
 
@@ -178,11 +180,11 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       const start = position();
       stepChar();
       stepChar();
-      let warning: CommonTokenWarning | undefined;
+      const warnings: CommonTokenWarning[] = [];
       for (;;) {
         const bc = peekChar();
         if (bc === -1 || bc === NUL) {
-          warning = CommonTokenWarning.UnterminatedBlockComment;
+          warnings.push(CommonTokenWarning.UnterminatedBlockComment);
           break;
         }
         if (bc === STAR && peekCharAt(1) === SLASH) {
@@ -192,7 +194,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         }
         stepChar();
       }
-      yield { kind: CommonTokenKind.BlockComment, start, end: position(), warning };
+      yield { kind: CommonTokenKind.BlockComment, start, end: position(), warnings };
       continue;
     }
 
@@ -202,12 +204,12 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       stepChar();
       const contentStart = position();
       let contentEnd: Position;
-      let warning: CommonTokenWarning | undefined;
+      const warnings: CommonTokenWarning[] = [];
       for (;;) {
         const qc = peekChar();
         if (qc === -1 || qc === NUL) {
           contentEnd = position();
-          warning = CommonTokenWarning.UnterminatedQuotedToken;
+          warnings.push(CommonTokenWarning.UnterminatedQuotedToken);
           break;
         }
         if (qc === DQUOTE) {
@@ -217,11 +219,9 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         }
         stepChar();
       }
-      if (warning === undefined) {
-        const contentLength = contentEnd.offset - contentStart.offset;
-        if (contentLength >= MAX_TOKEN_CHARS) {
-          warning = CommonTokenWarning.TokenTooLong;
-        }
+      const contentLength = contentEnd.offset - contentStart.offset;
+      if (contentLength >= MAX_TOKEN_CHARS) {
+        warnings.push(CommonTokenWarning.TokenTooLong);
       }
       yield {
         kind: CommonTokenKind.QuotedToken,
@@ -229,7 +229,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         end: position(),
         contentStart,
         contentEnd,
-        warning,
+        warnings,
       };
       continue;
     }
@@ -243,8 +243,8 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         stepChar();
       } while (peekChar() > WS_MAX);
       const contentLength = position().offset - start.offset;
-      const warning = contentLength >= MAX_TOKEN_CHARS ? CommonTokenWarning.TokenTooLong : undefined;
-      yield { kind: CommonTokenKind.BareToken, start, end: position(), warning };
+      const warnings = contentLength >= MAX_TOKEN_CHARS ? [CommonTokenWarning.TokenTooLong] : [];
+      yield { kind: CommonTokenKind.BareToken, start, end: position(), warnings };
     }
   }
 }

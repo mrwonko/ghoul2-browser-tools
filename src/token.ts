@@ -29,6 +29,21 @@ export type Token<
     readonly kind: K;
     readonly start: Position;
     readonly end: Position; // exclusive: one past the last code unit spanned
-    readonly warning?: Warning;
+    /**
+     * Every anomaly flagged for this token; `[]` when there's nothing to
+     * flag (never optional/undefined, so callers don't need an extra
+     * undefined-check). A token can be anomalous in more than one way at
+     * once — e.g. an unterminated quoted token whose content also reaches
+     * `MAX_TOKEN_CHARS` carries both `UnterminatedQuotedToken` and
+     * `TokenTooLong`.
+     *
+     * Each entry here implicitly spans this token's own `start`/`end`. A
+     * future parser that aggregates multiple underlying tokens into one
+     * higher-level result might eventually want each warning to instead
+     * carry its own `start`/`end` (distinct from the aggregate token's own
+     * span) — this is a deliberately deferred idea, not a TODO, since
+     * nothing today exercises or could verify that generalization.
+     */
+    readonly warnings: ReadonlyArray<Warning>;
   } & (K extends keyof ExtraByKind ? ExtraByKind[K] : unknown);
 }[Kind];

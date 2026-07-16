@@ -73,12 +73,12 @@ type WithRelativeOffsets<T> = {
 /** The part of a `TokenFixture` shared by every kind, independent of that
  *  kind's own extra data: the literal source text this fixture contributes
  *  (its `start`/`end` span is implied by where it falls in the concatenated
- *  input, never stated) plus the kind itself and any warning expected on
- *  the resulting token. */
+ *  input, never stated) plus the kind itself and any warnings expected on
+ *  the resulting token (`[]` when omitted). */
 interface TokenFixtureBase<Kind, Warning> {
   readonly source: string;
   readonly kind: Kind;
-  readonly warning?: Warning;
+  readonly warnings?: ReadonlyArray<Warning>;
 }
 
 /**
@@ -86,7 +86,7 @@ interface TokenFixtureBase<Kind, Warning> {
  * same mapped-type-over-a-union-then-indexed-access trick to build a
  * discriminated union — except it's the recipe for a token rather than the
  * token itself: `TokenFixtureBase` stands in for `Token`'s own
- * `kind`/`start`/`end`/`warning` fields, and any `Position` field in a
+ * `kind`/`start`/`end`/`warnings` fields, and any `Position` field in a
  * kind's extra data becomes a `RelativeOffset`.
  */
 type TokenFixture<
@@ -126,7 +126,7 @@ function buildFixture<Kind extends string, Warning extends string, ExtraByKind e
   const tokens: Token<Kind, Warning, ExtraByKind>[] = [];
   let cursor = 0;
   for (const fixture of fixtures) {
-    const { source: fixtureSource, kind, warning, ...extra } = fixture;
+    const { source: fixtureSource, kind, warnings, ...extra } = fixture;
     const start = cursor;
     const end = cursor + fixtureSource.length;
     cursor = end;
@@ -140,7 +140,7 @@ function buildFixture<Kind extends string, Warning extends string, ExtraByKind e
       kind,
       start: positionAt(source, start),
       end: positionAt(source, end),
-      warning,
+      warnings: warnings ?? [],
       ...resolvedExtra,
     } as Token<Kind, Warning, ExtraByKind>);
   }
@@ -214,7 +214,7 @@ describe('tokenize', () => {
         {
           source: '/* unterminated, runs to EOF',
           kind: CommonTokenKind.BlockComment,
-          warning: CommonTokenWarning.UnterminatedBlockComment,
+          warnings: [CommonTokenWarning.UnterminatedBlockComment],
         },
         { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
@@ -246,7 +246,7 @@ describe('tokenize', () => {
           kind: CommonTokenKind.QuotedToken,
           contentStart: afterStart(1),
           contentEnd: beforeEnd(0), // exactly at the token's own end: no closing quote was found
-          warning: CommonTokenWarning.UnterminatedQuotedToken,
+          warnings: [CommonTokenWarning.UnterminatedQuotedToken],
         },
         { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
@@ -295,7 +295,7 @@ describe('tokenize', () => {
           source: '\0',
           kind: CommonTokenKind.Eof,
           reason: EofReason.EmbeddedNull,
-          warning: CommonTokenWarning.EmbeddedNull,
+          warnings: [CommonTokenWarning.EmbeddedNull],
         },
       ],
       { trailingRawInput: 'bar' },
@@ -322,23 +322,34 @@ comment */ next"unterminated`;
 
   describe('MAX_TOKEN_CHARS boundary (>= 1024, not > 1024 — the original engine discards the whole token at that length, not just truncates)', () => {
     it.each([
-      { length: 1023, wantWarning: undefined },
-      { length: 1024, wantWarning: CommonTokenWarning.TokenTooLong },
-      { length: 2000, wantWarning: CommonTokenWarning.TokenTooLong },
-    ])('bare token of length $length', ({ length, wantWarning }) => {
+      { length: 1023, wantWarnings: [] },
+      { length: 1024, wantWarnings: [CommonTokenWarning.TokenTooLong] },
+      { length: 2000, wantWarnings: [CommonTokenWarning.TokenTooLong] },
+    ])('bare token of length $length', ({ length, wantWarnings }) => {
       const source = 'a'.repeat(length);
       const [token] = [...tokenize(source)];
-      expect(token).toMatchObject({ kind: CommonTokenKind.BareToken, warning: wantWarning });
+      expect(token).toMatchObject({ kind: CommonTokenKind.BareToken, warnings: wantWarnings });
     });
 
     it.each([
-      { length: 1023, wantWarning: undefined },
-      { length: 1024, wantWarning: CommonTokenWarning.TokenTooLong },
-      { length: 2000, wantWarning: CommonTokenWarning.TokenTooLong },
-    ])('quoted token with content length $length', ({ length, wantWarning }) => {
+      { length: 1023, wantWarnings: [] },
+      { length: 1024, wantWarnings: [CommonTokenWarning.TokenTooLong] },
+      { length: 2000, wantWarnings: [CommonTokenWarning.TokenTooLong] },
+    ])('quoted token with content length $length', ({ length, wantWarnings }) => {
       const source = `"${'a'.repeat(length)}"`;
       const [token] = [...tokenize(source)];
-      expect(token).toMatchObject({ kind: CommonTokenKind.QuotedToken, warning: wantWarning });
+      expect(token).toMatchObject({ kind: CommonTokenKind.QuotedToken, warnings: wantWarnings });
+    });
+
+    it('unterminated quoted token whose content also reaches MAX_TOKEN_CHARS carries both warnings', () => {
+      // No closing quote, so it's simultaneously UnterminatedQuotedToken
+      // (content ran to EOF) and TokenTooLong (content length >= 1024).
+      const source = `"${'a'.repeat(1024)}`;
+      const [token] = [...tokenize(source)];
+      expect(token).toMatchObject({
+        kind: CommonTokenKind.QuotedToken,
+        warnings: [CommonTokenWarning.UnterminatedQuotedToken, CommonTokenWarning.TokenTooLong],
+      });
     });
   });
 });
