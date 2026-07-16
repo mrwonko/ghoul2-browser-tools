@@ -34,7 +34,7 @@ export enum EofReason {
   EmbeddedNull = 'embedded-null',
 }
 
-interface CommonTokenExtra {
+export interface CommonTokenExtra {
   [CommonTokenKind.QuotedToken]: {
     /**
      * Span of the string's content, excluding the surrounding quotes. If

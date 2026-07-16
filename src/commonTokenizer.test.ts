@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { Position } from './token.js';
+import type { Position, Token } from './token.js';
 import {
   CommonToken,
+  CommonTokenExtra,
   CommonTokenKind,
   CommonTokenWarning,
   EofReason,
@@ -29,252 +30,235 @@ function positionAt(source: string, offset: number): Position {
   return { offset, line, column };
 }
 
-function ws(source: string, start: number, end: number): CommonToken {
-  return { kind: CommonTokenKind.Whitespace, start: positionAt(source, start), end: positionAt(source, end) };
+// --- Fixture DSL: a token kind's extra data, but with every Position field
+// expressed relative to that token's own span, so a test case can put the
+// source literal right next to what it parses into instead of a table of
+// absolute Positions computed far away from the string they describe. ---
+
+/**
+ * For one field of a token kind's extra data that would normally be a
+ * `Position`, a relative offset instead: `>= 0` means N code units after
+ * this token's own start; `< 0` means N code units before its own end. A
+ * plain `0` always means "at start"; write a literal `-0` for "0 before
+ * end" (i.e. exactly at the token's own end) — see `buildFixture`'s
+ * `Object.is` check, since `-0 >= 0` is true in JS and would otherwise
+ * collapse into the start-relative case.
+ */
+type RelativeOffset = number;
+
+/** Swaps every `Position`-typed property of a token kind's extra-fields
+ *  shape for a `RelativeOffset`, leaving every other property (e.g. `Eof`'s
+ *  `reason: EofReason`) unchanged. */
+type WithRelativeOffsets<T> = {
+  [K in keyof T]: T[K] extends Position ? RelativeOffset : T[K];
+};
+
+/**
+ * Mirrors `Token<Kind, Warning, ExtraByKind>` (`src/token.ts`) exactly —
+ * same mapped-type-over-a-union-then-indexed-access trick to build a
+ * discriminated union — except it's the recipe for a token rather than the
+ * token itself: `source` is the literal text this fixture contributes (its
+ * `start`/`end` span is implied by where it falls in the concatenated
+ * input, never stated), and any `Position` field in that kind's extra data
+ * becomes a `RelativeOffset`.
+ */
+type TokenFixture<
+  Kind extends string,
+  Warning extends string,
+  ExtraByKind extends Partial<Record<Kind, object>>,
+> = {
+  [K in Kind]: { source: string; kind: K; warning?: Warning } &
+    (K extends keyof ExtraByKind ? WithRelativeOffsets<ExtraByKind[K]> : unknown);
+}[Kind];
+
+// Resolves a RelativeOffset against one fixture's own [start, end) span
+// (both absolute offsets into the fully concatenated source).
+function resolveRelativeOffset(source: string, start: number, end: number, offset: RelativeOffset): Position {
+  const absolute = offset < 0 || Object.is(offset, -0) ? end + offset : start + offset;
+  return positionAt(source, absolute);
 }
 
-function bareTok(source: string, start: number, end: number, warning?: CommonTokenWarning): CommonToken {
-  return { kind: CommonTokenKind.BareToken, start: positionAt(source, start), end: positionAt(source, end), warning };
+/**
+ * Concatenates every fixture's `source` (plus `opts.trailingRawInput`, if
+ * given — extra raw text fed to the parser but outside the
+ * expected-tokens list, for cases like "NUL followed by garbage that must
+ * yield nothing") into the full input a parser would see. Each fixture's
+ * span is exactly `[cursor before, cursor after consuming its source)` —
+ * there's no override, since "span = source's own length" already covers
+ * every case, including the embedded-NUL one. Each `RelativeOffset` field
+ * resolves to an absolute `Position` relative to that same span, via
+ * `positionAt`'s '\n'-aware advance logic (same rules `tokenize()` itself
+ * uses).
+ */
+function buildFixture<Kind extends string, Warning extends string, ExtraByKind extends Partial<Record<Kind, object>>>(
+  fixtures: readonly TokenFixture<Kind, Warning, ExtraByKind>[],
+  opts?: { trailingRawInput?: string },
+): { source: string; tokens: Token<Kind, Warning, ExtraByKind>[] } {
+  const source = fixtures.map((f) => f.source).join('') + (opts?.trailingRawInput ?? '');
+
+  const tokens: Token<Kind, Warning, ExtraByKind>[] = [];
+  let cursor = 0;
+  for (const fixture of fixtures) {
+    const { source: fixtureSource, kind, warning, ...extra } = fixture;
+    const start = cursor;
+    const end = cursor + fixtureSource.length;
+    cursor = end;
+
+    const resolvedExtra: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(extra)) {
+      resolvedExtra[key] = typeof value === 'number' ? resolveRelativeOffset(source, start, end, value) : value;
+    }
+
+    tokens.push({
+      kind,
+      start: positionAt(source, start),
+      end: positionAt(source, end),
+      warning,
+      ...resolvedExtra,
+    } as Token<Kind, Warning, ExtraByKind>);
+  }
+
+  return { source, tokens };
 }
 
-function lineComment(source: string, start: number, end: number): CommonToken {
-  return { kind: CommonTokenKind.LineComment, start: positionAt(source, start), end: positionAt(source, end) };
-}
+type CommonTokenFixture = TokenFixture<CommonTokenKind, CommonTokenWarning, CommonTokenExtra>;
 
-function blockComment(source: string, start: number, end: number, warning?: CommonTokenWarning): CommonToken {
-  return {
-    kind: CommonTokenKind.BlockComment,
-    start: positionAt(source, start),
-    end: positionAt(source, end),
-    warning,
-  };
-}
-
-function quotedTok(
-  source: string,
-  start: number,
-  end: number,
-  contentStart: number,
-  contentEnd: number,
-  warning?: CommonTokenWarning,
-): CommonToken {
-  return {
-    kind: CommonTokenKind.QuotedToken,
-    start: positionAt(source, start),
-    end: positionAt(source, end),
-    contentStart: positionAt(source, contentStart),
-    contentEnd: positionAt(source, contentEnd),
-    warning,
-  };
-}
-
-// The trailing end-of-input Eof token every non-NUL source ends with, at
-// `source.length` with whatever line/column that offset implies.
-function eofEndOfInput(source: string): CommonToken {
-  return {
-    kind: CommonTokenKind.Eof,
-    start: positionAt(source, source.length),
-    end: positionAt(source, source.length),
-    reason: EofReason.EndOfInput,
-  };
-}
-
-// Runs tokenize() to completion, asserts the stream ends with the expected
-// end-of-input Eof token (once, here, so table rows below don't repeat it),
-// and returns the tokens preceding it.
-function tokenizeBody(source: string): CommonToken[] {
-  const tokens = [...tokenize(source)];
-  const last = tokens.pop();
-  expect(last).toEqual(eofEndOfInput(source));
-  return tokens;
+function buildCommonTokenFixture(
+  fixtures: readonly CommonTokenFixture[],
+  opts?: { trailingRawInput?: string },
+): { source: string; tokens: CommonToken[] } {
+  return buildFixture<CommonTokenKind, CommonTokenWarning, CommonTokenExtra>(fixtures, opts);
 }
 
 describe('tokenize', () => {
-  const bareA = 'foo';
-  const spaceA = ' ';
-  const bareA2 = 'bar';
-  const sourceA = bareA + spaceA + bareA2;
-
-  const bareB = 'foo';
-  const mixedWsB = '\t\v\f\r\n'; // tab, vertical tab, form feed, CR, LF
-  const bareB2 = 'bar';
-  const sourceB = bareB + mixedWsB + bareB2;
-
-  const lineCommentC = '// a comment';
-  const nlC = '\n';
-  const bareC2 = 'next';
-  const sourceC = lineCommentC + nlC + bareC2;
-
-  const bareD = 'foo';
-  const spaceD = ' ';
-  const lineCommentD = '// runs to true EOF, no trailing newline';
-  const sourceD = bareD + spaceD + lineCommentD;
-
-  const bareE = 'foo';
-  const spaceE1 = ' ';
-  const blockE = '/* a block comment */';
-  const spaceE2 = ' ';
-  const bareE2 = 'bar';
-  const sourceE = bareE + spaceE1 + blockE + spaceE2 + bareE2;
-
-  const bareF = 'foo';
-  const spaceF = ' ';
-  const blockF = '/* unterminated, runs to EOF';
-  const sourceF = bareF + spaceF + blockF;
-
-  const quotedG1 = '"hello"';
-  const spaceG = ' ';
-  const quotedG2 = '""'; // empty quoted token
-  const sourceG = quotedG1 + spaceG + quotedG2;
-
-  const quotedH = '"unterminated, runs to EOF';
-  const sourceH = quotedH;
-
-  const bareI1 = 'foo//bar';
-  const spaceI = ' ';
-  const bareI2 = 'foo/*bar';
-  const bareI3 = 'foo"bar"';
-  const sourceI = bareI1 + spaceI + bareI2 + spaceI + bareI3;
-
-  // Comments are 'sep', same as whitespace: right after a block comment ends
-  // (no separating whitespace at all), a '"' still starts a *fresh*
-  // quoted-token — contrast with sourceI above, where the same character
-  // appearing mid-run of an already-started bare-token is just absorbed.
-  const blockK = '/* c */';
-  const quotedK = '"q"';
-  const sourceK = blockK + quotedK;
-
-  const cases: { name: string; source: string; want: CommonToken[] }[] = [
+  const cases: { name: string; fixtures: CommonTokenFixture[] }[] = [
     {
       name: 'bare tokens separated by a single space',
-      source: sourceA,
-      want: [
-        bareTok(sourceA, 0, bareA.length),
-        ws(sourceA, bareA.length, bareA.length + spaceA.length),
-        bareTok(sourceA, bareA.length + spaceA.length, sourceA.length),
+      fixtures: [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: 'bar', kind: CommonTokenKind.BareToken },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'mixed whitespace chars coalesce into one whitespace token; LF increments line and resets column, CR does not',
-      source: sourceB,
-      want: [
-        bareTok(sourceB, 0, bareB.length),
-        ws(sourceB, bareB.length, bareB.length + mixedWsB.length),
-        bareTok(sourceB, bareB.length + mixedWsB.length, sourceB.length),
+      fixtures: [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        { source: '\t\v\f\r\n', kind: CommonTokenKind.Whitespace }, // tab, vertical tab, form feed, CR, LF
+        { source: 'bar', kind: CommonTokenKind.BareToken },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'line comment mid-line ends before the newline; the newline itself is part of the following whitespace token',
-      source: sourceC,
-      want: [
-        lineComment(sourceC, 0, lineCommentC.length),
-        ws(sourceC, lineCommentC.length, lineCommentC.length + nlC.length),
-        bareTok(sourceC, lineCommentC.length + nlC.length, sourceC.length),
+      fixtures: [
+        { source: '// a comment', kind: CommonTokenKind.LineComment },
+        { source: '\n', kind: CommonTokenKind.Whitespace },
+        { source: 'next', kind: CommonTokenKind.BareToken },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'line comment running to true EOF with no trailing newline carries no warning',
-      source: sourceD,
-      want: [
-        bareTok(sourceD, 0, bareD.length),
-        ws(sourceD, bareD.length, bareD.length + spaceD.length),
-        lineComment(sourceD, bareD.length + spaceD.length, sourceD.length),
+      fixtures: [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: '// runs to true EOF, no trailing newline', kind: CommonTokenKind.LineComment },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'normal block comment',
-      source: sourceE,
-      want: [
-        bareTok(sourceE, 0, bareE.length),
-        ws(sourceE, bareE.length, bareE.length + spaceE1.length),
-        blockComment(sourceE, bareE.length + spaceE1.length, bareE.length + spaceE1.length + blockE.length),
-        ws(
-          sourceE,
-          bareE.length + spaceE1.length + blockE.length,
-          bareE.length + spaceE1.length + blockE.length + spaceE2.length,
-        ),
-        bareTok(sourceE, bareE.length + spaceE1.length + blockE.length + spaceE2.length, sourceE.length),
+      fixtures: [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: '/* a block comment */', kind: CommonTokenKind.BlockComment },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: 'bar', kind: CommonTokenKind.BareToken },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'unterminated block comment running to EOF gets warning and spans to the end',
-      source: sourceF,
-      want: [
-        bareTok(sourceF, 0, bareF.length),
-        ws(sourceF, bareF.length, bareF.length + spaceF.length),
-        blockComment(
-          sourceF,
-          bareF.length + spaceF.length,
-          sourceF.length,
-          CommonTokenWarning.UnterminatedBlockComment,
-        ),
+      fixtures: [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        {
+          source: '/* unterminated, runs to EOF',
+          kind: CommonTokenKind.BlockComment,
+          warning: CommonTokenWarning.UnterminatedBlockComment,
+        },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'quoted tokens, including an empty one',
-      source: sourceG,
-      want: [
-        quotedTok(sourceG, 0, quotedG1.length, 1, quotedG1.length - 1),
-        ws(sourceG, quotedG1.length, quotedG1.length + spaceG.length),
-        quotedTok(
-          sourceG,
-          quotedG1.length + spaceG.length,
-          sourceG.length,
-          quotedG1.length + spaceG.length + 1,
-          quotedG1.length + spaceG.length + 1,
-        ),
+      fixtures: [
+        { source: '"hello"', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: '""', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 }, // empty content
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'unterminated quoted token running to EOF: contentEnd equals end, plus an UnterminatedQuotedToken warning',
-      source: sourceH,
-      want: [
-        quotedTok(sourceH, 0, sourceH.length, 1, sourceH.length, CommonTokenWarning.UnterminatedQuotedToken),
+      fixtures: [
+        {
+          source: '"unterminated, runs to EOF',
+          kind: CommonTokenKind.QuotedToken,
+          contentStart: +1,
+          contentEnd: -0, // exactly at the token's own end: no closing quote was found
+          warning: CommonTokenWarning.UnterminatedQuotedToken,
+        },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
       name: 'bare tokens containing "//", "/*", or a quote after their first character stay a single bare-token',
-      source: sourceI,
-      want: [
-        bareTok(sourceI, 0, bareI1.length),
-        ws(sourceI, bareI1.length, bareI1.length + spaceI.length),
-        bareTok(sourceI, bareI1.length + spaceI.length, bareI1.length + spaceI.length + bareI2.length),
-        ws(
-          sourceI,
-          bareI1.length + spaceI.length + bareI2.length,
-          bareI1.length + spaceI.length + bareI2.length + spaceI.length,
-        ),
-        bareTok(sourceI, bareI1.length + spaceI.length + bareI2.length + spaceI.length, sourceI.length),
+      fixtures: [
+        { source: 'foo//bar', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: 'foo/*bar', kind: CommonTokenKind.BareToken },
+        { source: ' ', kind: CommonTokenKind.Whitespace },
+        { source: 'foo"bar"', kind: CommonTokenKind.BareToken },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
     {
+      // Comments are 'sep', same as whitespace: right after a block comment
+      // ends (no separating whitespace at all), a '"' still starts a
+      // *fresh* quoted-token — contrast with the "stay a single
+      // bare-token" case above, where the same character appearing
+      // mid-run of an already-started bare-token is just absorbed.
       name: 'a comment ending immediately (no whitespace) before a quote still starts a fresh quoted-token',
-      source: sourceK,
-      want: [
-        blockComment(sourceK, 0, blockK.length),
-        quotedTok(sourceK, blockK.length, sourceK.length, blockK.length + 1, sourceK.length - 1),
+      fixtures: [
+        { source: '/* c */', kind: CommonTokenKind.BlockComment },
+        { source: '"q"', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 },
+        { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
   ];
 
-  it.each(cases)('$name', ({ source, want }) => {
-    expect(tokenizeBody(source)).toEqual(want);
+  it.each(cases)('$name', ({ fixtures }) => {
+    const { source, tokens: want } = buildCommonTokenFixture(fixtures);
+    expect([...tokenize(source)]).toEqual(want);
   });
 
   it('stops at an embedded NUL: the Eof token carries reason EmbeddedNull and a warning, nothing after the NUL is yielded', () => {
-    const before = 'foo';
-    const source = before + '\0' + 'bar';
-    const tokens = [...tokenize(source)];
-    expect(tokens).toEqual([
-      bareTok(source, 0, before.length),
-      {
-        kind: CommonTokenKind.Eof,
-        start: positionAt(source, before.length),
-        end: positionAt(source, before.length + 1),
-        reason: EofReason.EmbeddedNull,
-        warning: CommonTokenWarning.EmbeddedNull,
-      },
-    ]);
+    const { source, tokens: want } = buildCommonTokenFixture(
+      [
+        { source: 'foo', kind: CommonTokenKind.BareToken },
+        {
+          source: '\0',
+          kind: CommonTokenKind.Eof,
+          reason: EofReason.EmbeddedNull,
+          warning: CommonTokenWarning.EmbeddedNull,
+        },
+      ],
+      { trailingRawInput: 'bar' },
+    );
+    expect([...tokenize(source)]).toEqual(want);
   });
 
   it('round-trips a source string exercising several token kinds at once', () => {
