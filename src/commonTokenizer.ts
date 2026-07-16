@@ -54,11 +54,16 @@ interface CommonTokenExtra {
 export type CommonToken = Token<CommonTokenKind, CommonTokenWarning, CommonTokenExtra>;
 
 /** Matches JA's `COM_ParseExt`: `com_token[MAX_TOKEN_CHARS]`'s storage guard
- *  is `if (len < MAX_TOKEN_CHARS) { store; len++ }`, so any token whose real
- *  content length is `>= MAX_TOKEN_CHARS` gets silently discarded to `""` by
- *  the original engine (`if (len == MAX_TOKEN_CHARS) len = 0`) — there is no
- *  "truncate to the first MAX_TOKEN_CHARS characters" middle ground. The
- *  boundary is therefore `>=`, not `>`. */
+ *  is `if (len < MAX_TOKEN_CHARS) { store; len++ }`, so a *bare* token whose
+ *  real content length is `>= MAX_TOKEN_CHARS` gets silently discarded to
+ *  `""` by the original engine (`if (len == MAX_TOKEN_CHARS) len = 0`) —
+ *  there is no "truncate to the first MAX_TOKEN_CHARS characters" middle
+ *  ground for bare tokens. A *quoted* token instead gets its content capped
+ *  at `MAX_TOKEN_CHARS` characters (not counting the opening quote) rather
+ *  than discarded. Neither original-engine outcome is one we want to
+ *  reproduce, so both cases are flagged identically here as
+ *  `CommonTokenWarning.TokenTooLong`, with the token's full, uncapped span
+ *  still yielded. The boundary is `>=`, not `>`, either way. */
 const MAX_TOKEN_CHARS = 1024;
 
 const NUL = 0;
