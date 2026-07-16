@@ -119,12 +119,14 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
   for (;;) {
     const c = peekChar();
 
+    // true end of input
     if (c === -1) {
       const start = position();
       yield { kind: CommonTokenKind.Eof, start, end: start, reason: EofReason.EndOfInput };
       return;
     }
 
+    // embedded NUL: a diagnosable anomaly, not ordinary end-of-file (see EofReason)
     if (c === NUL) {
       const start = position();
       stepChar();
@@ -138,6 +140,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       return;
     }
 
+    // sep: a run of whitespace bytes coalesces into one token
     if (c >= WS_MIN && c <= WS_MAX) {
       const start = position();
       let wc: number;
@@ -149,6 +152,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       continue;
     }
 
+    // line-comment: '//' to (but excluding) the next '\n', or to EOF/NUL if none
     if (c === SLASH && peekCharAt(1) === SLASH) {
       const start = position();
       stepChar();
@@ -164,6 +168,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       continue;
     }
 
+    // block-comment: '/*' up to and including the first '*/', or to EOF/NUL
     if (c === SLASH && peekCharAt(1) === STAR) {
       const start = position();
       stepChar();
@@ -186,6 +191,7 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       continue;
     }
 
+    // quoted-token: '"' up to and including the closing '"', or to EOF/NUL
     if (c === DQUOTE) {
       const start = position();
       stepChar();
