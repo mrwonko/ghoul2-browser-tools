@@ -18,6 +18,7 @@ export enum CommonTokenKind {
 
 export enum CommonTokenWarning {
   UnterminatedBlockComment = 'unterminated-block-comment',
+  UnterminatedQuotedToken = 'unterminated-quoted-token',
   EmbeddedNull = 'embedded-null',
   TokenTooLong = 'token-too-long',
 }
@@ -38,8 +39,9 @@ interface CommonTokenExtra {
     /**
      * Span of the string's content, excluding the surrounding quotes. If
      * `contentEnd` equals the token's own `end`, there was no closing quote
-     * before EOF/NUL — termination is implied by this alone, so there's no
-     * separate "unterminated" flag to keep consistent with it.
+     * before EOF/NUL; that case additionally carries
+     * `warning: CommonTokenWarning.UnterminatedQuotedToken`, mirroring
+     * `CommonTokenWarning.UnterminatedBlockComment` for block comments.
      */
     readonly contentStart: Position;
     readonly contentEnd: Position;
@@ -189,10 +191,12 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
       stepChar();
       const contentStart = position();
       let contentEnd: Position;
+      let warning: CommonTokenWarning | undefined;
       for (;;) {
         const qc = peekChar();
         if (qc === -1 || qc === NUL) {
           contentEnd = position();
+          warning = CommonTokenWarning.UnterminatedQuotedToken;
           break;
         }
         if (qc === DQUOTE) {
@@ -202,8 +206,12 @@ export function* tokenize(source: string): Generator<CommonToken, void, undefine
         }
         stepChar();
       }
-      const contentLength = contentEnd.offset - contentStart.offset;
-      const warning = contentLength >= MAX_TOKEN_CHARS ? CommonTokenWarning.TokenTooLong : undefined;
+      if (warning === undefined) {
+        const contentLength = contentEnd.offset - contentStart.offset;
+        if (contentLength >= MAX_TOKEN_CHARS) {
+          warning = CommonTokenWarning.TokenTooLong;
+        }
+      }
       yield {
         kind: CommonTokenKind.QuotedToken,
         start,

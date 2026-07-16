@@ -226,9 +226,11 @@ describe('tokenize', () => {
       ],
     },
     {
-      name: 'unterminated quoted token running to EOF: contentEnd equals end, no warning field',
+      name: 'unterminated quoted token running to EOF: contentEnd equals end, plus an UnterminatedQuotedToken warning',
       source: sourceH,
-      want: [quotedTok(sourceH, 0, sourceH.length, 1, sourceH.length)],
+      want: [
+        quotedTok(sourceH, 0, sourceH.length, 1, sourceH.length, CommonTokenWarning.UnterminatedQuotedToken),
+      ],
     },
     {
       name: 'bare tokens containing "//", "/*", or a quote after their first character stay a single bare-token',
