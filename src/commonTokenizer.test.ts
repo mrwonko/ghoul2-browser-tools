@@ -36,15 +36,32 @@ function positionAt(source: string, offset: number): Position {
 // absolute Positions computed far away from the string they describe. ---
 
 /**
- * For one field of a token kind's extra data that would normally be a
- * `Position`, a relative offset instead: `>= 0` means N code units after
- * this token's own start; `< 0` means N code units before its own end. A
- * plain `0` always means "at start"; write a literal `-0` for "0 before
- * end" (i.e. exactly at the token's own end) — see `buildFixture`'s
- * `Object.is` check, since `-0 >= 0` is true in JS and would otherwise
- * collapse into the start-relative case.
+ * A `Position` expressed relative to a fixture's own `[start, end)` span,
+ * anchored explicitly to one end or the other — `afterStart(n)`/
+ * `beforeEnd(n)` below are the only ways to build one. Unlike a signed
+ * number (where `>= 0` meant "from start" and `< 0` meant "from end"), this
+ * can represent "0 code units before end" (`beforeEnd(0)`, i.e. exactly at
+ * the token's own end) without colliding with "0 code units after start"
+ * (`afterStart(0)`, i.e. exactly at the token's own start).
  */
-type RelativeOffset = number;
+interface RelativeOffset {
+  readonly anchor: 'start' | 'end';
+  readonly distance: number;
+}
+
+/** `distance` code units after this fixture's own start. */
+function afterStart(distance: number): RelativeOffset {
+  return { anchor: 'start', distance };
+}
+
+/** `distance` code units before this fixture's own end. */
+function beforeEnd(distance: number): RelativeOffset {
+  return { anchor: 'end', distance };
+}
+
+function isRelativeOffset(value: unknown): value is RelativeOffset {
+  return typeof value === 'object' && value !== null && 'anchor' in value && 'distance' in value;
+}
 
 /** Swaps every `Position`-typed property of a token kind's extra-fields
  *  shape for a `RelativeOffset`, leaving every other property (e.g. `Eof`'s
@@ -53,28 +70,38 @@ type WithRelativeOffsets<T> = {
   [K in keyof T]: T[K] extends Position ? RelativeOffset : T[K];
 };
 
+/** The part of a `TokenFixture` shared by every kind, independent of that
+ *  kind's own extra data: the literal source text this fixture contributes
+ *  (its `start`/`end` span is implied by where it falls in the concatenated
+ *  input, never stated) plus the kind itself and any warning expected on
+ *  the resulting token. */
+interface TokenFixtureBase<Kind, Warning> {
+  readonly source: string;
+  readonly kind: Kind;
+  readonly warning?: Warning;
+}
+
 /**
  * Mirrors `Token<Kind, Warning, ExtraByKind>` (`src/token.ts`) exactly —
  * same mapped-type-over-a-union-then-indexed-access trick to build a
  * discriminated union — except it's the recipe for a token rather than the
- * token itself: `source` is the literal text this fixture contributes (its
- * `start`/`end` span is implied by where it falls in the concatenated
- * input, never stated), and any `Position` field in that kind's extra data
- * becomes a `RelativeOffset`.
+ * token itself: `TokenFixtureBase` stands in for `Token`'s own
+ * `kind`/`start`/`end`/`warning` fields, and any `Position` field in a
+ * kind's extra data becomes a `RelativeOffset`.
  */
 type TokenFixture<
   Kind extends string,
   Warning extends string,
   ExtraByKind extends Partial<Record<Kind, object>>,
 > = {
-  [K in Kind]: { source: string; kind: K; warning?: Warning } &
+  [K in Kind]: TokenFixtureBase<K, Warning> &
     (K extends keyof ExtraByKind ? WithRelativeOffsets<ExtraByKind[K]> : unknown);
 }[Kind];
 
 // Resolves a RelativeOffset against one fixture's own [start, end) span
 // (both absolute offsets into the fully concatenated source).
 function resolveRelativeOffset(source: string, start: number, end: number, offset: RelativeOffset): Position {
-  const absolute = offset < 0 || Object.is(offset, -0) ? end + offset : start + offset;
+  const absolute = offset.anchor === 'start' ? start + offset.distance : end - offset.distance;
   return positionAt(source, absolute);
 }
 
@@ -106,7 +133,7 @@ function buildFixture<Kind extends string, Warning extends string, ExtraByKind e
 
     const resolvedExtra: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(extra)) {
-      resolvedExtra[key] = typeof value === 'number' ? resolveRelativeOffset(source, start, end, value) : value;
+      resolvedExtra[key] = isRelativeOffset(value) ? resolveRelativeOffset(source, start, end, value) : value;
     }
 
     tokens.push({
@@ -195,9 +222,19 @@ describe('tokenize', () => {
     {
       name: 'quoted tokens, including an empty one',
       fixtures: [
-        { source: '"hello"', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 },
+        {
+          source: '"hello"',
+          kind: CommonTokenKind.QuotedToken,
+          contentStart: afterStart(1),
+          contentEnd: beforeEnd(1),
+        },
         { source: ' ', kind: CommonTokenKind.Whitespace },
-        { source: '""', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 }, // empty content
+        {
+          source: '""',
+          kind: CommonTokenKind.QuotedToken,
+          contentStart: afterStart(1),
+          contentEnd: beforeEnd(1),
+        }, // empty content
         { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
@@ -207,8 +244,8 @@ describe('tokenize', () => {
         {
           source: '"unterminated, runs to EOF',
           kind: CommonTokenKind.QuotedToken,
-          contentStart: +1,
-          contentEnd: -0, // exactly at the token's own end: no closing quote was found
+          contentStart: afterStart(1),
+          contentEnd: beforeEnd(0), // exactly at the token's own end: no closing quote was found
           warning: CommonTokenWarning.UnterminatedQuotedToken,
         },
         { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
@@ -234,7 +271,12 @@ describe('tokenize', () => {
       name: 'a comment ending immediately (no whitespace) before a quote still starts a fresh quoted-token',
       fixtures: [
         { source: '/* c */', kind: CommonTokenKind.BlockComment },
-        { source: '"q"', kind: CommonTokenKind.QuotedToken, contentStart: +1, contentEnd: -1 },
+        {
+          source: '"q"',
+          kind: CommonTokenKind.QuotedToken,
+          contentStart: afterStart(1),
+          contentEnd: beforeEnd(1),
+        },
         { source: '', kind: CommonTokenKind.Eof, reason: EofReason.EndOfInput },
       ],
     },
