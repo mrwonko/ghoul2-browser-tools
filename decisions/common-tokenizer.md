@@ -1,0 +1,30 @@
+---
+name: common-tokenizer
+summary: The generic Token<Kind, Warning, ExtraByKind> shape shared by all future text-format parsers (no `text` field), an explicit terminal Eof token distinguishing true end-of-input from an embedded NUL, MAX_TOKEN_CHARS diagnosed as a `>= 1024` warning, and Token being generic over Warning too so each parser's warning set stays closed.
+---
+
+`src/token.ts` and `src/commonTokenizer.ts` implement the whitespace/comment/token scanner shared by `animation.cfg` and the future `animevents.cfg` parser (`sep`/`token`/`bare-token`/`quoted-token`/`line-comment`/`block-comment` in `reference/animation_cfg_grammar.abnf`, ported from `COM_Parse`/`COM_ParseExt`/`SkipWhitespace` in `reference/ja_animation_parse.c`). Four choices here are non-obvious enough to record, so later parsers (the animation.cfg record parser, animevents.cfg, and any future text-format work) don't silently contradict them.
+
+## One uniform `Token<Kind, Warning, ExtraByKind>` shape, no `text` field
+
+Every result token of a given parser is one type: `Kind` is that parser's closed enum of token kinds, `Warning` is its closed enum of possible per-token anomalies, and `ExtraByKind` is a *partial* map from only the kinds that need extra data (e.g. `commonTokenizer`'s `QuotedToken` needs `contentStart`/`contentEnd`, `Eof` needs `reason`) to their extra-fields shape. Mapping over `Kind` this way produces a discriminated union — narrowing on `token.kind` gives the right extra fields for that kind — derived from one shared generic instead of a family of hand-written per-kind aliases.
+
+There is deliberately no `text` field. `start`/`end` are themselves a view into the original source (a pair of `Position`s, each carrying a UTF-16 code-unit `offset`), so storing the substring too would just be a second, redundant source of truth that could drift out of sync with the offsets. Consumers slice the source on demand instead (`source.slice(start.offset, end.offset)`, or `tokenValue()` for `commonTokenizer`'s bare/quoted tokens specifically).
+
+## Explicit terminal `Eof` token, not a generator that just stops
+
+`tokenize()` always yields exactly one trailing `Eof` token before returning, rather than letting callers infer "no more tokens" from the generator simply stopping. Its `reason` (`EofReason.EndOfInput` vs. `EofReason.EmbeddedNull`) distinguishes two cases the original engine's `SkipWhitespace`/`COM_ParseExt` treat identically, because C's NUL-terminated strings make NUL double as the sentinel for "no more buffer" — there's no other way to represent end-of-buffer at that layer, and no case in the original engine where content continues after a NUL.
+
+This codebase departs from that on purpose: a real `animation.cfg`/`animevents.cfg` is plain ASCII/UTF-8 text and cannot legitimately contain a literal NUL byte, so an embedded NUL is worth surfacing as a diagnosable anomaly rather than silently folded into ordinary end-of-file. `EofReason.EmbeddedNull` carries `warning: CommonTokenWarning.EmbeddedNull`; `EofReason.EndOfInput` never does. The `Eof` token's own span pins down exactly where this happened: a zero-width token at `source.length` for ordinary end-of-input, or a one-code-unit-wide token spanning exactly the offending NUL character otherwise — so a diagnostic can point straight at the byte, and so the one deliberate exception to "every byte of the source is covered by some token" (nothing after an embedded NUL is tokenized) is still fully covered by the trailing `Eof` token itself, not silently dropped.
+
+## `MAX_TOKEN_CHARS` (1024) diagnosed as a warning, not left out as a pure runtime bound
+
+`reference/animation_cfg_grammar.abnf`'s own scope notes call table-size limits like `MAX_TOKEN_CHARS` engine runtime array bounds outside the file format, and that's still true in general. But tracing `COM_ParseExt`'s storage guard (`if (len < MAX_TOKEN_CHARS) { store; len++ }`, then `if (len == MAX_TOKEN_CHARS) len = 0`) shows there's no "truncate to the first 1024 characters" middle ground: **any bare or quoted token whose real content is 1024 characters or longer gets silently discarded to `""` by the original engine.** That's surprising enough — and different enough from what "exceeds a length limit" suggests — that `commonTokenizer` flags it explicitly as `CommonTokenWarning.TokenTooLong` rather than silently reproducing the original's silent-empty-string behavior or ignoring the limit as pure noise.
+
+The boundary is `>= 1024`, not `> 1024` — an easy off-by-one, since the whole point of the warning is to flag exactly when the original engine would have silently eaten the token. It's measured on content length only (the dequoted span for quoted tokens, the raw span for bare ones), not the token's overall `start`/`end` (which for a quoted token includes the surrounding quotes).
+
+## `Token` generic over `Warning`, not one shared enum
+
+`Warning` is a type parameter of `Token`, not a single `TokenWarning` enum every parser instantiates against. `commonTokenizer` owns its own closed `CommonTokenWarning`; a later parser (the animation.cfg record parser, animevents.cfg's own parser) defines its own independent `Kind`/`Warning`/`ExtraByKind` and instantiates `Token<ItsKind, ItsWarning, ItsExtra>`, completely decoupled from `CommonTokenWarning`.
+
+This keeps each parser's set of possible warnings narrow and closed to what it actually produces — a `commonTokenizer` consumer never sees a warning value that could only come from some other parser, and vice versa. TypeScript enums can't be extended (there's no `enum B extends A`), so genericity over `Warning` is what keeps this open-ended as more file-type parsers get added, rather than every parser's warnings accreting into one shared, ever-growing enum.
