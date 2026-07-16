@@ -62,10 +62,10 @@ export type CommonToken = Token<CommonTokenKind, CommonTokenWarning, CommonToken
 const MAX_TOKEN_CHARS = 1024;
 
 const NUL = 0;
-const LF = 0x0a;
-const SLASH = 0x2f; // '/'
-const STAR = 0x2a; // '*'
-const DQUOTE = 0x22; // '"'
+const LF = '\n'.charCodeAt(0);
+const SLASH = '/'.charCodeAt(0);
+const STAR = '*'.charCodeAt(0);
+const DQUOTE = '"'.charCodeAt(0);
 const WS_MIN = 0x01;
 const WS_MAX = 0x20;
 
