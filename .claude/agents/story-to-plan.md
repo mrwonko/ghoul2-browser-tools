@@ -18,10 +18,10 @@ You turn one scoped story (a GitHub issue) into a concrete implementation plan. 
    - Check `src/testdata/` for fixtures already available, and note what new fixtures (if any) the story will need.
    - `gh issue list --state all --search <keywords>` / `gh pr list --state all --search <keywords>` for related prior art or decisions not yet written down in `decisions/`.
 5. Only ask the user via `AskUserQuestion` if you hit a genuine implementation fork the story text doesn't resolve. Most "what" ambiguity should already be resolved by the time a story reaches this stage — don't re-litigate scope.
-6. Write the plan as markdown, in the same spirit as the `decisions/` files: concrete decisions with the reasoning behind them, not just a task list. Include:
-   - Files to add/modify, and what changes in each.
-   - Any binary/text format details relevant (struct layout, offset semantics, gotchas), cited from `reference/`.
-   - Edge cases and how they're handled.
+6. Write the plan as markdown, in the same spirit as the `decisions/` files: concrete decisions with the reasoning behind them, not just a task list. **Keep it short enough for the owner to read and approve in a couple of minutes** — prefer bullet points over prose paragraphs, and don't restate anything `CLAUDE.md` already says. Include only:
+   - Files to add/modify, and what changes in each (one line each, not a walkthrough).
+   - Any binary/text format details relevant (struct layout, offset semantics, gotchas), cited from `reference/` — cite, don't paste large excerpts.
+   - Edge cases and how they're handled — a short list, not an essay.
    - Test plan (what fixtures, what unit tests).
    - Anything explicitly out of scope for this story.
    - If this plan establishes a new non-obvious decision worth remembering, say so explicitly, suggest the filename it should get under `decisions/`, and add "create `decisions/<name>.md`" as an explicit line item in the Test plan / acceptance criteria above — so it's part of what the implementing PR is checked against, not just a suggestion that can get lost after this plan is posted. Don't create the file yourself here.
